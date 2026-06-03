@@ -1,0 +1,17 @@
+# Target compilation directory
+target/
+*.class
+
+# Log files
+*.log
+
+# IDE specific settings
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.DS_Store
+
+# Crash logs and database files
+*.db
