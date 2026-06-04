@@ -3,14 +3,13 @@ package com.mark43.loyalty.domain.service.impl;
 import com.mark43.loyalty.domain.entity.Customer;
 import com.mark43.loyalty.domain.entity.CustomerProductLedgerEntry;
 import com.mark43.loyalty.domain.entity.Product;
-import com.mark43.loyalty.domain.entity.ProductAction;
 import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.domain.service.ProductOrderService;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.CustomerProductLedgerRepository;
 import com.mark43.loyalty.infrastructure.repository.ProductRepository;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -171,7 +170,7 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             log.info("Logged return of {}x '{}' under transaction {}", returnQuantity, productName, purchaseReference);
         }
 
-        // THE FINAL BRIDGE: Call our streamlined, bulletproof point clawback
+        // THE FINAL BRIDGE: Call our point clawback
         loyaltyService.clawbackPoints(purchaseReference, returnedProductIds);
 
         log.info("All returned line-items and point clawbacks committed successfully.");
