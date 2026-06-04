@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static com.mark43.loyalty.domain.entity.Tier.SILVER;
 import static com.mark43.loyalty.domain.entity.TransactionType.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,7 +55,7 @@ class LoyaltyServiceImplTest {
     void verifyIfCustomerCanBeRegisteredSuccessfully() {
 
         CustomerDTO dto = new CustomerDTO("Raj", "Singh",
-                "raj@example.com", "555-1234", null);
+                "raj@example.com", "555-1234", SILVER, null);
 
         // Act
         loyaltyService.registerCustomer(dto);
@@ -68,7 +69,7 @@ class LoyaltyServiceImplTest {
         assertEquals("Singh", savedCustomer.getLastName());
         assertEquals("raj@example.com", savedCustomer.getEmail());
         assertEquals("555-1234", savedCustomer.getPhoneNo());
-        assertEquals(Tier.SILVER, savedCustomer.getCurrentTier());
+        assertEquals(SILVER, savedCustomer.getCurrentTier());
 
         verify(customerRepository, times(1)).findByEmail(dto.getEmail());
         verify(customerRepository, times(1)).findByPhoneNo(dto.getPhoneNo());
@@ -77,7 +78,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenEmailAlreadyExist() {
         CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com",
-                "555-1234", null);
+                "555-1234", SILVER, null);
         Customer existingCustomer = new Customer();
 
         when(customerRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(existingCustomer));
@@ -93,7 +94,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenPhoneNoAlreadyExist() {
         CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com",
-                "555-1234", null);
+                "555-1234", SILVER, null);
         Customer existingCustomer = new Customer();
 
         when(customerRepository.findByPhoneNo(dto.getPhoneNo())).thenReturn(Optional.of(existingCustomer));

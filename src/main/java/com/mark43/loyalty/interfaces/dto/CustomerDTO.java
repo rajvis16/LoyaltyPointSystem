@@ -1,5 +1,6 @@
 package com.mark43.loyalty.interfaces.dto;
 
+import com.mark43.loyalty.domain.entity.Tier;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,6 +23,8 @@ public class CustomerDTO {
 
     @NotBlank(message = "Phone number is required.")
     private String phoneNo;
+
+    private Tier currentTier;
 
     @NotNull(message = "Address details are required.")
     @Valid // Cascades validation down into the nested AddressDTO properties
