@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class RewardCatalog {
+public class Reward {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

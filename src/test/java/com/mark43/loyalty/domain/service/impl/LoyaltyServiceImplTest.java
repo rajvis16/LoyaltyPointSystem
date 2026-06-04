@@ -4,7 +4,7 @@ import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.PointLedgerEntryRepository;
 import com.mark43.loyalty.infrastructure.repository.ProductRepository;
-import com.mark43.loyalty.infrastructure.repository.RewardCatalogRepository;
+import com.mark43.loyalty.infrastructure.repository.RewardRepository;
 import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
@@ -45,7 +45,7 @@ class LoyaltyServiceImplTest {
     private PointLedgerEntryRepository pointLedgerEntryRepository;
 
     @Mock
-    private RewardCatalogRepository rewardCatalogRepository;
+    private RewardRepository rewardRepository;
 
     @InjectMocks
     private LoyaltyServiceImpl loyaltyService;
@@ -182,7 +182,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setRewardId(50L);
         reward.setName("Free Coffee");
         reward.setPointsRequired(new BigDecimal("30.00"));
@@ -193,7 +193,7 @@ class LoyaltyServiceImplTest {
         earnEntry.setExpiryDate(LocalDateTime.now().plusMonths(6));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(earnEntry));
 
@@ -218,7 +218,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setRewardId(51L);
         reward.setName("Movie Ticket");
         reward.setPointsRequired(new BigDecimal("100.00"));
@@ -237,7 +237,7 @@ class LoyaltyServiceImplTest {
         clawback.setPoints(new BigDecimal("30.00"));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(earn, redeem, clawback));
 
@@ -261,7 +261,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setName("Gift Card");
         reward.setPointsRequired(new BigDecimal("50.00"));
 
@@ -274,7 +274,7 @@ class LoyaltyServiceImplTest {
         clawback.setPoints(new BigDecimal("15.00"));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(redeem, clawback));
 
@@ -292,7 +292,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setName("Luxury Hoodie");
         reward.setPointsRequired(new BigDecimal("50.00"));
 
@@ -302,7 +302,7 @@ class LoyaltyServiceImplTest {
         earnEntry.setExpiryDate(LocalDateTime.now().plusMonths(6));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(earnEntry));
 
@@ -320,7 +320,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setName("Tech Gadget");
         reward.setPointsRequired(new BigDecimal("50.00"));
 
@@ -337,7 +337,7 @@ class LoyaltyServiceImplTest {
         PointLedgerEntry c2 = createMockEntry("CLAWBACK", "20.00", 0);
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(e1, r1, e2, r2, e3, c1, e4, r3, c2));
 
@@ -354,7 +354,7 @@ class LoyaltyServiceImplTest {
 
         Customer customer = new Customer();
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.empty());
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> loyaltyService.redeemReward(dto));
 
@@ -369,7 +369,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setName("Free Pass");
         reward.setPointsRequired(new BigDecimal("100.00"));
 
@@ -379,7 +379,7 @@ class LoyaltyServiceImplTest {
         expiredEarn.setExpiryDate(LocalDateTime.now().minusMonths(1));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(expiredEarn));
 
@@ -397,7 +397,7 @@ class LoyaltyServiceImplTest {
         customer.setCustomerId(1L);
         customer.setEmail("raj@example.com");
 
-        RewardCatalog reward = new RewardCatalog();
+        Reward reward = new Reward();
         reward.setName("Premium Jacket");
         reward.setPointsRequired(new BigDecimal("100.00"));
 
@@ -411,7 +411,7 @@ class LoyaltyServiceImplTest {
         oldEarn3.setExpiryDate(LocalDateTime.now().minusDays(1));
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
-        when(rewardCatalogRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
+        when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
         when(pointLedgerEntryRepository.findByCustomerIdOrderByPointLedgerEntryIdAsc(customer.getCustomerId()))
                 .thenReturn(List.of(oldEarn1, oldEarn2, oldEarn3));
 

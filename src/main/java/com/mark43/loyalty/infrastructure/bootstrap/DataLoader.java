@@ -3,7 +3,7 @@ package com.mark43.loyalty.infrastructure.bootstrap;
 import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.ProductRepository;
-import com.mark43.loyalty.infrastructure.repository.RewardCatalogRepository;
+import com.mark43.loyalty.infrastructure.repository.RewardRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -21,14 +21,14 @@ public class DataLoader implements CommandLineRunner {
 
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
-    private final RewardCatalogRepository rewardCatalogRepository;
+    private final RewardRepository rewardRepository;
 
     public DataLoader(CustomerRepository customerRepository,
                       ProductRepository productRepository,
-                      RewardCatalogRepository rewardCatalogRepository) {
+                      RewardRepository rewardRepository) {
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
-        this.rewardCatalogRepository = rewardCatalogRepository;
+        this.rewardRepository = rewardRepository;
     }
 
     @Override
@@ -77,18 +77,18 @@ public class DataLoader implements CommandLineRunner {
             log.info("Successfully seeded 15 store products catalog.");
         }
 
-        if (rewardCatalogRepository.count() == 0) {
-            rewardCatalogRepository.saveAll(List.of(
-                    new RewardCatalog(null, "Free Premium Espresso", "", new BigDecimal("15")),
-                    new RewardCatalog(null, "Store Eco Tote Bag", "", new BigDecimal("30")),
-                    new RewardCatalog(null, "Enamel Pin Collector Set", "", new BigDecimal("50")),
-                    new RewardCatalog(null, "Signature Stainless Water Bottle", "", new BigDecimal("100")),
-                    new RewardCatalog(null, "$15 Store Checkout Credit", "", new BigDecimal("150")),
-                    new RewardCatalog(null, "Branded Graphic T-Shirt", "", new BigDecimal("200")),
-                    new RewardCatalog(null, "$30 Store Checkout Credit", "", new BigDecimal("300")),
-                    new RewardCatalog(null, "Luxury Scented Candle", "", new BigDecimal("400")),
-                    new RewardCatalog(null, "Cozy Knit Throw Blanket", "", new BigDecimal("600")),
-                    new RewardCatalog(null, "$100 Mega Gift Card VIP", "", new BigDecimal("1000"))
+        if (rewardRepository.count() == 0) {
+            rewardRepository.saveAll(List.of(
+                    new Reward(null, "Free Premium Espresso", "", new BigDecimal("15")),
+                    new Reward(null, "Store Eco Tote Bag", "", new BigDecimal("30")),
+                    new Reward(null, "Enamel Pin Collector Set", "", new BigDecimal("50")),
+                    new Reward(null, "Signature Stainless Water Bottle", "", new BigDecimal("100")),
+                    new Reward(null, "$15 Store Checkout Credit", "", new BigDecimal("150")),
+                    new Reward(null, "Branded Graphic T-Shirt", "", new BigDecimal("200")),
+                    new Reward(null, "$30 Store Checkout Credit", "", new BigDecimal("300")),
+                    new Reward(null, "Luxury Scented Candle", "", new BigDecimal("400")),
+                    new Reward(null, "Cozy Knit Throw Blanket", "", new BigDecimal("600")),
+                    new Reward(null, "$100 Mega Gift Card VIP", "", new BigDecimal("1000"))
             ));
             log.info("Successfully seeded 10 reward redemptions catalog.");
         }

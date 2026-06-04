@@ -5,7 +5,7 @@ import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.PointLedgerEntryRepository;
 import com.mark43.loyalty.infrastructure.repository.ProductRepository;
-import com.mark43.loyalty.infrastructure.repository.RewardCatalogRepository;
+import com.mark43.loyalty.infrastructure.repository.RewardRepository;
 import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
@@ -19,7 +19,6 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static com.mark43.loyalty.domain.entity.ProductAction.BOUGHT;
 import static com.mark43.loyalty.domain.entity.Tier.SILVER;
 import static com.mark43.loyalty.domain.entity.TransactionType.*;
 
@@ -31,16 +30,16 @@ public class LoyaltyServiceImpl implements LoyaltyService {
     private final CustomerRepository customerRepository;
     private final PointLedgerEntryRepository pointLedgerEntryRepository;
     private final ProductRepository productRepository;
-    private final RewardCatalogRepository rewardCatalogRepository;
+    private final RewardRepository rewardRepository;
 
     public LoyaltyServiceImpl(CustomerRepository customerRepository,
                               PointLedgerEntryRepository pointLedgerEntryRepository,
                               ProductRepository productRepository,
-                              RewardCatalogRepository rewardCatalogRepository) {
+                              RewardRepository rewardRepository) {
         this.customerRepository = customerRepository;
         this.pointLedgerEntryRepository = pointLedgerEntryRepository;
         this.productRepository = productRepository;
-        this.rewardCatalogRepository = rewardCatalogRepository;
+        this.rewardRepository = rewardRepository;
     }
 
     @Override
@@ -131,7 +130,7 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: "
                         + redeemRewardDTO.getCustomerEmail()));
 
-        RewardCatalog reward = rewardCatalogRepository.findByName(redeemRewardDTO.getRewardName())
+        Reward reward = rewardRepository.findByName(redeemRewardDTO.getRewardName())
                 .orElseThrow(() -> new IllegalArgumentException("Reward not found in catalog: "
                         + redeemRewardDTO.getRewardName()));
 
