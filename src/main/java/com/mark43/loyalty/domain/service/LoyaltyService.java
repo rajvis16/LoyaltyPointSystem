@@ -5,6 +5,8 @@ import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
 
+import java.util.List;
+
 public interface LoyaltyService {
 
     /**
@@ -28,7 +30,7 @@ public interface LoyaltyService {
      * Handles processing returns or cancellations, deducting previously awarded points
      * and potentially triggering negative balance states.
      */
-    void clawbackPoints(String purchaseReference);
+    void clawbackPoints(String purchaseReference, List<Long> productIds);
 
     /**
      * Aggregates dynamic point balances and evaluates rolling 12-month tier standing.

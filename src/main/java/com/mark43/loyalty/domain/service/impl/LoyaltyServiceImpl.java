@@ -1,9 +1,6 @@
 package com.mark43.loyalty.domain.service.impl;
 
-import com.mark43.loyalty.domain.entity.Customer;
-import com.mark43.loyalty.domain.entity.PointLedgerEntry;
-import com.mark43.loyalty.domain.entity.Product;
-import com.mark43.loyalty.domain.entity.RewardCatalog;
+import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.PointLedgerEntryRepository;
@@ -22,6 +19,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.mark43.loyalty.domain.entity.ProductAction.BOUGHT;
 import static com.mark43.loyalty.domain.entity.Tier.SILVER;
 import static com.mark43.loyalty.domain.entity.TransactionType.*;
 
@@ -165,43 +163,53 @@ public class LoyaltyServiceImpl implements LoyaltyService {
     }
 
     @Override
-    public void clawbackPoints(String purchaseReference) {
+    public void clawbackPoints(String purchaseReference, List<Long> returnedProductIds) {
 
         if (purchaseReference == null || purchaseReference.isEmpty()) {
-            log.warn("Illegal purchaseReference ({}) sent! No points will be clawed back!",
-                    purchaseReference);
+            log.warn("Illegal purchaseReference ({}) sent! No points will be clawed back!", purchaseReference);
             return;
         }
 
-        PointLedgerEntry originalEarnEntry =
-                pointLedgerEntryRepository.findByPurchaseIdAndTransactionType(purchaseReference, EARN)
+        if (returnedProductIds == null || returnedProductIds.isEmpty()) {
+            log.warn("No product IDs provided for clawback on purchase reference: {}. Skipping.", purchaseReference);
+            return;
+        }
+
+        // Fetch the original transaction using the purchase reference string
+        PointLedgerEntry originalEarnEntry = pointLedgerEntryRepository
+                .findByPurchaseIdAndTransactionType(purchaseReference, EARN)
                 .orElseThrow(() -> new IllegalArgumentException("No original earning entry found for purchase reference: "
                         + purchaseReference));
 
-        // Prevent duplicate clawbacks using the self-referential parent check
-        boolean alreadyClawedBack = pointLedgerEntryRepository.existsByParentEntry(originalEarnEntry);
+        // Read the snapshot tier multiplier directly from the row
+        BigDecimal historicalMultiplier = originalEarnEntry.getTierPointUsed();
 
-        if (alreadyClawedBack) {
-            log.warn("Clawback already processed for original ledger entry ID: {}. " +
-                    "Skipping.", originalEarnEntry.getPointLedgerEntryId());
-            return;
+        if (historicalMultiplier == null) {
+            throw new IllegalStateException("Original ledger entry is missing its historical tierPointUse multiplier.");
         }
+
+        // Sum up the prices of the products currently being returned out of the catalog
+        BigDecimal totalRefundValue = BigDecimal.ZERO;
+        for (Long returnedProductId : returnedProductIds) {
+            Product returnedProduct = productRepository.findById(returnedProductId)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found in catalog with ID: " + returnedProductId));
+            totalRefundValue = totalRefundValue.add(returnedProduct.getPrice());
+        }
+
+        // Calculate exact points to claw back using the immutable historical multiplier
+        BigDecimal pointsToClawback = totalRefundValue.multiply(historicalMultiplier).setScale(2, RoundingMode.HALF_UP);
 
         PointLedgerEntry clawbackEntry = new PointLedgerEntry();
         clawbackEntry.setCustomerId(originalEarnEntry.getCustomerId());
         clawbackEntry.setTransactionType(CLAWBACK);
-
-        // Stored as a negative value
-        clawbackEntry.setPoints(originalEarnEntry.getPoints().negate());
+        clawbackEntry.setPoints(pointsToClawback.negate()); // Stored as a negative value
         clawbackEntry.setPurchaseId(purchaseReference);
-        clawbackEntry.setParentEntry(originalEarnEntry); // Make sure to assign the originalEntry as the parent of the
-                                                        // new entry
+        clawbackEntry.setParentEntry(originalEarnEntry); // Explicit reference chain mapping back to origin
 
         pointLedgerEntryRepository.save(clawbackEntry);
 
-        log.info("Successfully clawed back {} points from customer ID: {} for refunded purchase: {}",
-                originalEarnEntry.getPoints(), originalEarnEntry.getCustomerId(), purchaseReference);
-
+        log.info("Successfully clawed back {} points from customer ID: {} for products {} in purchase: {}. (Using snapshot rate: {}x)",
+                pointsToClawback, originalEarnEntry.getCustomerId(), returnedProductIds, purchaseReference, historicalMultiplier);
     }
 
     @Override

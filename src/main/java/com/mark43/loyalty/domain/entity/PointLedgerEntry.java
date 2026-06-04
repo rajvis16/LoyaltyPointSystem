@@ -35,6 +35,7 @@ public class PointLedgerEntry {
     private String purchaseId;
     private Long rewardId;
     private LocalDateTime expiryDate;
+    private BigDecimal tierPointUsed;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_entry_id")

@@ -18,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -423,83 +425,112 @@ class LoyaltyServiceImplTest {
 
     @Test
     void verifyIfClawbackSucceedsAndCreatesOffsettingEntryLinkedToParent() {
-
         String purchaseRef = "purchase-999";
+        List<Long> returnedProductIds = Arrays.asList(101L, 102L);
 
+        // 1. Setup original earning entry with your new tierPointUse snapshot column
         PointLedgerEntry originalEarn = new PointLedgerEntry();
         originalEarn.setPointLedgerEntryId(777L);
         originalEarn.setCustomerId(43L);
         originalEarn.setTransactionType(EARN);
-        originalEarn.setPoints(new BigDecimal("120.50"));
+        originalEarn.setPoints(new BigDecimal("150.00"));
         originalEarn.setPurchaseId(purchaseRef);
+        originalEarn.setTierPointUsed(new BigDecimal("1.5")); // Gold snapshot rate
+
+        // 2. Setup items inside the product catalog mock with explicit prices
+        Product runningShoes = new Product(101L, "Running Shoes", "It is a running shoes", new BigDecimal("60.00"));
+        Product socks = new Product(102L, "Socks", "It is a nice socks", new BigDecimal("10.00"));
 
         when(pointLedgerEntryRepository.findByPurchaseIdAndTransactionType(purchaseRef, EARN))
                 .thenReturn(Optional.of(originalEarn));
+        when(productRepository.findById(101L)).thenReturn(Optional.of(runningShoes));
+        when(productRepository.findById(102L)).thenReturn(Optional.of(socks));
 
-        when(pointLedgerEntryRepository.existsByParentEntry(originalEarn)).thenReturn(false);
+        // 3. Trigger the method under test with the new signature
+        // Total refund value = $60 + $10 = $70. Proportional point deduction: $70 * 1.5 = 105.00 points
+        loyaltyService.clawbackPoints(purchaseRef, returnedProductIds);
 
-        loyaltyService.clawbackPoints(purchaseRef);
-
+        // 4. Capture and verify the append-only record assertions
         ArgumentCaptor<PointLedgerEntry> entryCaptor = ArgumentCaptor.forClass(PointLedgerEntry.class);
         verify(pointLedgerEntryRepository, times(1)).save(entryCaptor.capture());
 
         PointLedgerEntry savedClawback = entryCaptor.getValue();
         assertEquals(43L, savedClawback.getCustomerId());
         assertEquals(CLAWBACK, savedClawback.getTransactionType());
-        assertEquals(new BigDecimal("-120.50"), savedClawback.getPoints());
+        assertEquals(new BigDecimal("-105.00"), savedClawback.getPoints()); // Exact historical penalty value
         assertEquals(purchaseRef, savedClawback.getPurchaseId());
-        assertEquals(originalEarn, savedClawback.getParentEntry());
-    }
-
-    @Test
-    void verifyIfClawbackIsSkippedWhenDuplicateRefundAttemptIsProcessed() {
-
-        String purchaseRef = "purchase-999";
-
-        PointLedgerEntry originalEarn = new PointLedgerEntry();
-        originalEarn.setPointLedgerEntryId(777L);
-        originalEarn.setCustomerId(43L);
-        originalEarn.setTransactionType(EARN);
-
-        when(pointLedgerEntryRepository.findByPurchaseIdAndTransactionType(purchaseRef, EARN))
-                .thenReturn(Optional.of(originalEarn));
-        when(pointLedgerEntryRepository.existsByParentEntry(originalEarn)).thenReturn(true);
-
-        loyaltyService.clawbackPoints(purchaseRef);
-
-        verify(pointLedgerEntryRepository, never()).save(any(PointLedgerEntry.class));
+        assertEquals(originalEarn, savedClawback.getParentEntry()); // Linked cleanly
     }
 
     @Test
     void verifyIfClawbackThrowsExceptionWhenOriginalEarnEntryIsMissing() {
         String unknownPurchaseRef = "invalid-ref-000";
+        List<Long> productIds = Collections.singletonList(101L);
 
         when(pointLedgerEntryRepository.findByPurchaseIdAndTransactionType(unknownPurchaseRef, EARN))
                 .thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                loyaltyService.clawbackPoints(unknownPurchaseRef)
+                loyaltyService.clawbackPoints(unknownPurchaseRef, productIds)
         );
 
         assertTrue(exception.getMessage().contains("No original earning entry found for purchase reference"));
-        verify(pointLedgerEntryRepository, never()).existsByParentEntry(any());
+        verify(productRepository, never()).findById(anyLong());
+        verify(pointLedgerEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void verifyIfClawbackThrowsExceptionWhenProductIsMissingFromCatalog() {
+        String purchaseRef = "purchase-999";
+        List<Long> productIds = Collections.singletonList(404L); // Missing ID
+
+        PointLedgerEntry originalEarn = new PointLedgerEntry();
+        originalEarn.setCustomerId(43L);
+        originalEarn.setTransactionType(EARN);
+        originalEarn.setTierPointUsed(new BigDecimal("1.0"));
+
+        when(pointLedgerEntryRepository.findByPurchaseIdAndTransactionType(purchaseRef, EARN))
+                .thenReturn(Optional.of(originalEarn));
+        when(productRepository.findById(404L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                loyaltyService.clawbackPoints(purchaseRef, productIds)
+        );
+
+        assertTrue(exception.getMessage().contains("Product not found in catalog with ID: 404"));
         verify(pointLedgerEntryRepository, never()).save(any());
     }
 
     @Test
     void verifyIfClawbackIsGracefullySkippedWhenPurchaseReferenceIsNull() {
+        List<Long> productIds = Collections.singletonList(101L);
 
-        loyaltyService.clawbackPoints(null);
+        loyaltyService.clawbackPoints(null, productIds);
+
         verify(pointLedgerEntryRepository, never()).save(any(PointLedgerEntry.class));
-
     }
 
     @Test
-    void verifyIfClawbackIsGracefullySkippedWhenPurchaseReferenceIsNullOrEmpty() {
+    void verifyIfClawbackIsGracefullySkippedWhenPurchaseReferenceIsEmpty() {
+        List<Long> productIds = Collections.singletonList(101L);
 
-        loyaltyService.clawbackPoints("");
+        loyaltyService.clawbackPoints("", productIds);
+
         verify(pointLedgerEntryRepository, never()).save(any(PointLedgerEntry.class));
+    }
 
+    @Test
+    void verifyIfClawbackIsGracefullySkippedWhenProductListIsNull() {
+        loyaltyService.clawbackPoints("purchase-999", null);
+
+        verify(pointLedgerEntryRepository, never()).save(any(PointLedgerEntry.class));
+    }
+
+    @Test
+    void verifyIfClawbackIsGracefullySkippedWhenProductListIsEmpty() {
+        loyaltyService.clawbackPoints("purchase-999", Collections.emptyList());
+
+        verify(pointLedgerEntryRepository, never()).save(any(PointLedgerEntry.class));
     }
 
     @Test
