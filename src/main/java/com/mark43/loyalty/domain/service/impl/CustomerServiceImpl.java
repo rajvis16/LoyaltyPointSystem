@@ -7,19 +7,19 @@ import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
 @Log4j2
 @RequiredArgsConstructor
 public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
 
+    @Transactional
     @Override
     public CustomerDTO createCustomer(CustomerDTO customerDTO) {
 
@@ -35,6 +35,7 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToDto(savedCustomer);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public CustomerDTO getCustomerById(Long customerId) {
 
@@ -44,6 +45,7 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToDto(customer);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public CustomerDTO getCustomerByEmail(String email) {
 
@@ -53,6 +55,7 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToDto(customer);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public CustomerDTO getCustomerByPhoneNo(String phoneNo) {
 
@@ -62,6 +65,7 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToDto(customer);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<CustomerDTO> getAllCustomers() {
 
@@ -70,6 +74,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @Override
     public CustomerDTO updateCustomer(Long customerId, CustomerDTO customerDTO) {
 
@@ -97,6 +102,7 @@ public class CustomerServiceImpl implements CustomerService {
         return convertToDto(updatedCustomer);
     }
 
+    @Transactional
     @Override
     public void deleteCustomer(Long customerId) {
 
