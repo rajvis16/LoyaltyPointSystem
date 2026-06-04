@@ -3,6 +3,7 @@ package com.mark43.loyalty.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -34,6 +35,9 @@ public class CustomerProductLedgerEntry {
 
     @Column(nullable = false)
     private Integer quantity;
+
+    @Column(nullable = false)
+    private BigDecimal totalSpendingPerProduct;
 
     @Column(nullable = false)
     private LocalDateTime transactionDate;

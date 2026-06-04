@@ -3,7 +3,11 @@ package com.mark43.loyalty.infrastructure.repository;
 import com.mark43.loyalty.domain.entity.PointLedgerEntry;
 import com.mark43.loyalty.domain.entity.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,5 +35,8 @@ public interface PointLedgerEntryRepository extends JpaRepository<PointLedgerEnt
      * Fetches entry by purchaseReference and transaction type
      */
     Optional<PointLedgerEntry> findByPurchaseIdAndTransactionType(String purchaseReference, TransactionType transactionType);
+
+    @Query("SELECT COALESCE(SUM(p.points), 0.00) FROM PointLedgerEntry p WHERE p.customerId = :customerId")
+    BigDecimal calculateActivePointsBalance(@Param("customerId") Long customerId);
 
 }

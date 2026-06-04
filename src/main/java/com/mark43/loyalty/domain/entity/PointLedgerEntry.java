@@ -35,6 +35,9 @@ public class PointLedgerEntry {
     private String purchaseId;
     private Long rewardId;
     private LocalDateTime expiryDate;
+
+    // When the customer earned points, what tier was active
+    // Handy when we have to do the clawback
     private BigDecimal tierPointUsed;
 
     @ManyToOne(fetch = FetchType.LAZY)

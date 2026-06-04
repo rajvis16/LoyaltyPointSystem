@@ -42,11 +42,11 @@ public interface ProductService {
      * Updates the core properties of an existing catalog item.
      *
      * @param productId The unique identifier of the product being modified.
-     * @param productDetails The data transfer object containing the updated parameters.
+     * @param productDTO The data transfer object containing the updated parameters.
      * @return The updated ProductDTO snapshot representing the saved database state.
      * @throws IllegalArgumentException if the target product is not found or payload is invalid.
      */
-    ProductDTO updateProduct(Long productId, ProductDTO productDetails);
+    ProductDTO updateProduct(Long productId, ProductDTO productDTO);
 
     /**
      * Permanently removes a product from the active database catalog.

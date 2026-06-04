@@ -9,11 +9,13 @@ import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.infrastructure.repository.CustomerProductLedgerRepository;
 import com.mark43.loyalty.infrastructure.repository.ProductRepository;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
+import com.mark43.loyalty.interfaces.dto.OrderRequestDTO;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,14 +32,17 @@ public class ProductOrderServiceImpl implements ProductOrderService {
 
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
-    private final CustomerProductLedgerRepository productLedgerRepository;
+    private final CustomerProductLedgerRepository customerProductLedgerRepository;
     private final LoyaltyService loyaltyService;
 
-    @Override
-    public void buyProducts(String customerEmail, String purchaseReference, Map<String, Integer> productQuantities) {
+    public void buyProducts(OrderRequestDTO orderRequestDTO) {
+
+        String customerEmail = orderRequestDTO.getCustomerEmail();
+        String purchaseReference = orderRequestDTO.getPurchaseReference();
+        Map<String, Integer> productQuantities = orderRequestDTO.getProductQuantities();
 
         if (customerEmail == null || customerEmail.isBlank()) {
-            throw  new IllegalArgumentException("Customer email cannot be Null or empty ");
+            throw new IllegalArgumentException("Customer email cannot be Null or empty ");
         }
 
         Customer customer = customerRepository.findByEmail(customerEmail)
@@ -47,9 +52,12 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             throw new IllegalArgumentException("Cannot process a purchase with empty product selection.");
         }
 
-        List<String> flatProductNamesList = new ArrayList<>();
+        BigDecimal totalOrderSpend = BigDecimal.ZERO;
+
+        List<String> productNames = new ArrayList<>();
 
         for (Map.Entry<String, Integer> entry : productQuantities.entrySet()) {
+
             String productName = entry.getKey();
             Integer quantity = entry.getValue();
 
@@ -60,28 +68,31 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             Product product = productRepository.findByName(productName)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found in catalog: " + productName));
 
-            // Write immutable BOUGHT row to our product ledger
+            BigDecimal lineItemSpend = product.getPrice().multiply(BigDecimal.valueOf(quantity));
+            totalOrderSpend = totalOrderSpend.add(lineItemSpend);
+
+            for (int i = 0; i < quantity; i++) {
+                productNames.add(productName);
+            }
+
             CustomerProductLedgerEntry ledgerEntry = new CustomerProductLedgerEntry();
             ledgerEntry.setCustomerId(customer.getCustomerId());
             ledgerEntry.setProductId(product.getProductId());
             ledgerEntry.setPurchaseId(purchaseReference);
             ledgerEntry.setAction(BOUGHT);
             ledgerEntry.setQuantity(quantity);
+            ledgerEntry.setTotalSpendingPerProduct(lineItemSpend);
             ledgerEntry.setTransactionDate(LocalDateTime.now());
 
-            productLedgerRepository.save(ledgerEntry);
-
-            // Populate flat collection list for downstream point evaluations
-            for (int i = 0; i < quantity; i++) {
-                flatProductNamesList.add(productName);
-            }
+            customerProductLedgerRepository.save(ledgerEntry);
         }
 
-        // Delegate to existing core points transaction ledger engine
         EarnPointsDTO earnPointsDTO = new EarnPointsDTO();
         earnPointsDTO.setCustomerEmail(customerEmail);
         earnPointsDTO.setPurchaseReference(purchaseReference);
-        earnPointsDTO.setProductNames(flatProductNamesList);
+        earnPointsDTO.setTotalSpend(totalOrderSpend);
+
+        earnPointsDTO.setProductNames(productNames);
 
         loyaltyService.earnPoints(earnPointsDTO);
 
@@ -89,7 +100,11 @@ public class ProductOrderServiceImpl implements ProductOrderService {
     }
 
     @Override
-    public void returnProducts(String customerEmail, String purchaseReference, Map<String, Integer> returnedProductQuantities) {
+    public void returnProducts(OrderRequestDTO orderRequestDTO) {
+
+        String customerEmail = orderRequestDTO.getCustomerEmail();
+        String purchaseReference = orderRequestDTO.getPurchaseReference();
+        Map<String, Integer> returnedProductQuantities = orderRequestDTO.getProductQuantities();
 
         if (customerEmail == null || customerEmail.isBlank()) {
             throw new IllegalArgumentException("Customer email cannot be Null or empty ");
@@ -103,7 +118,7 @@ public class ProductOrderServiceImpl implements ProductOrderService {
         }
 
         // Fetch the entire append-only ledger history for this purchaseReference (bill)
-        List<CustomerProductLedgerEntry> history = productLedgerRepository
+        List<CustomerProductLedgerEntry> history = customerProductLedgerRepository
                 .findByCustomerIdAndPurchaseId(customer.getCustomerId(), purchaseReference);
 
         if (history.isEmpty()) {
@@ -159,8 +174,9 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             returnEntry.setAction(RETURNED);
             returnEntry.setQuantity(returnQuantity);
             returnEntry.setTransactionDate(LocalDateTime.now());
+            returnEntry.setTotalSpendingPerProduct(product.getPrice().multiply(BigDecimal.valueOf(returnQuantity)));
 
-            productLedgerRepository.save(returnEntry);
+            customerProductLedgerRepository.save(returnEntry);
 
             // Populate the flat list for the loyalty engine (1 entry per unit item)
             for (int i = 0; i < returnQuantity; i++) {

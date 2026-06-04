@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
@@ -20,4 +21,6 @@ public class EarnPointsDTO {
 
     @NotEmpty(message = "Product names list cannot be null or empty.")
     private List<String> productNames;
+
+    private BigDecimal totalSpend;
 }

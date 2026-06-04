@@ -2,10 +2,7 @@ package com.mark43.loyalty.domain.service.impl;
 
 import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.domain.service.LoyaltyService;
-import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
-import com.mark43.loyalty.infrastructure.repository.PointLedgerEntryRepository;
-import com.mark43.loyalty.infrastructure.repository.ProductRepository;
-import com.mark43.loyalty.infrastructure.repository.RewardRepository;
+import com.mark43.loyalty.infrastructure.repository.*;
 import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
@@ -28,15 +25,18 @@ import static com.mark43.loyalty.domain.entity.TransactionType.*;
 public class LoyaltyServiceImpl implements LoyaltyService {
 
     private final CustomerRepository customerRepository;
+    private final CustomerProductLedgerRepository customerProductLedgerRepository;
     private final PointLedgerEntryRepository pointLedgerEntryRepository;
     private final ProductRepository productRepository;
     private final RewardRepository rewardRepository;
 
     public LoyaltyServiceImpl(CustomerRepository customerRepository,
+                              CustomerProductLedgerRepository customerProductLedgerRepository,
                               PointLedgerEntryRepository pointLedgerEntryRepository,
                               ProductRepository productRepository,
                               RewardRepository rewardRepository) {
         this.customerRepository = customerRepository;
+        this.customerProductLedgerRepository = customerProductLedgerRepository;
         this.pointLedgerEntryRepository = pointLedgerEntryRepository;
         this.productRepository = productRepository;
         this.rewardRepository = rewardRepository;
@@ -73,24 +73,11 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: "
                         + earnPointsDTO.getCustomerEmail()));
 
-        // Idempotency Check
+        // Idempotency Check - Points should be earned only once against a purchase reference (bill)
         if (pointLedgerEntryRepository.existsByPurchaseId(earnPointsDTO.getPurchaseReference())) {
             log.warn("Duplicate processing attempt detected for purchase reference: {}. " +
                     "Skipping allocation.", earnPointsDTO.getPurchaseReference());
             return;
-        }
-
-        // Calculate transaction spend
-        // NOTE: Any product missing will trigger a fail fast exception
-        // and the user will not be allowed to earn points on
-        // partial update
-        BigDecimal totalSpend = BigDecimal.ZERO;
-        if (earnPointsDTO.getProductNames() != null) {
-            for (String productName : earnPointsDTO.getProductNames()) {
-                Product product = productRepository.findByName(productName)
-                        .orElseThrow(() -> new IllegalArgumentException("Product not found in catalog: " + productName));
-                totalSpend = totalSpend.add(product.getPrice());
-            }
         }
 
         // Resolve multi-tier multiplier rules
@@ -100,23 +87,37 @@ public class LoyaltyServiceImpl implements LoyaltyService {
             case PLATINUM -> new BigDecimal("2.0");
         };
 
-        // Calculate rounded points to award
-        BigDecimal pointsToAward = totalSpend.multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
+        // Calculate new points earned
+        BigDecimal pointsToAward = earnPointsDTO.getTotalSpend().multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
 
         PointLedgerEntry earnEntry = new PointLedgerEntry();
         earnEntry.setCustomerId(customer.getCustomerId());
         earnEntry.setTransactionType(EARN);
         earnEntry.setPoints(pointsToAward);
+        earnEntry.setTierPointUsed(multiplier);
         earnEntry.setPurchaseId(earnPointsDTO.getPurchaseReference());
-
-        // Set expiration boundary (e.g., points valid for 1 year from today)
-        earnEntry.setExpiryDate(LocalDateTime.now().plusYears(1));
-
-        // Explicitly set parent to null since this is the root transaction event
+        earnEntry.setExpiryDate(LocalDateTime.now().plusYears(1)); // Points valid for 1 year
         earnEntry.setParentEntry(null);
 
-        // 6. Commit immutable row to database
         pointLedgerEntryRepository.save(earnEntry);
+
+        // =========================================================================
+        // HIBERNATE FLUSH OPTIMIZATION:
+        // Force Hibernate to sync its cache with the database storage engine.
+        // This pushes any 'BOUGHT' rows saved by the calling service into the
+        // database indexes immediately, guaranteeing our JPQL aggregate query
+        // doesn't read stale data.
+        // =========================================================================
+        customerProductLedgerRepository.flush();
+
+        // Now check if the customer tier could rolled to a new tier
+        // First, get the last 12 month net spending of the customer
+        BigDecimal netRollingSpend = customerProductLedgerRepository.calculateNetRollingSpend(
+                customer.getCustomerId(), LocalDateTime.now().minusYears(1)
+        );
+
+        // See if the customer goes to the new tier
+        updateCustomerTier(customer, netRollingSpend);
 
         log.info("Successfully allocated {} points to customer ID: {}.",
                 pointsToAward, customer.getCustomerId());
@@ -136,7 +137,8 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
         BigDecimal pointsNeeded = reward.getPointsRequired();
 
-        BigDecimal totalAvailablePoints = computeActiveBalanceFromLedger(customer.getCustomerId());
+        // Fast, single-row database summation!
+        BigDecimal totalAvailablePoints = pointLedgerEntryRepository.calculateActivePointsBalance(customer.getCustomerId());
 
         if (totalAvailablePoints.compareTo(pointsNeeded) < 0) {
             throw new IllegalArgumentException("Insufficient points balance. Required: " + pointsNeeded +
@@ -174,41 +176,54 @@ public class LoyaltyServiceImpl implements LoyaltyService {
             return;
         }
 
-        // Fetch the original transaction using the purchase reference string
         PointLedgerEntry originalEarnEntry = pointLedgerEntryRepository
-                .findByPurchaseIdAndTransactionType(purchaseReference, EARN)
+                .findByPurchaseIdAndTransactionType(purchaseReference, TransactionType.EARN)
                 .orElseThrow(() -> new IllegalArgumentException("No original earning entry found for purchase reference: "
                         + purchaseReference));
 
-        // Read the snapshot tier multiplier directly from the row
         BigDecimal historicalMultiplier = originalEarnEntry.getTierPointUsed();
-
         if (historicalMultiplier == null) {
             throw new IllegalStateException("Original ledger entry is missing its historical tierPointUse multiplier.");
         }
 
-        // Sum up the prices of the products currently being returned out of the catalog
-        BigDecimal totalRefundValue = BigDecimal.ZERO;
-        for (Long returnedProductId : returnedProductIds) {
-            Product returnedProduct = productRepository.findById(returnedProductId)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found in catalog with ID: " + returnedProductId));
-            totalRefundValue = totalRefundValue.add(returnedProduct.getPrice());
-        }
+        // Sum up the refund value using the list passed from the order service
+        BigDecimal totalRefundValue = productRepository.calculateTotalSumByIds(returnedProductIds);
 
-        // Calculate exact points to claw back using the immutable historical multiplier
+        // Calculate points to claw back and commit the negative point ledger entry
         BigDecimal pointsToClawback = totalRefundValue.multiply(historicalMultiplier).setScale(2, RoundingMode.HALF_UP);
 
+        Customer customer = customerRepository.findById(originalEarnEntry.getCustomerId())
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found for ID: " + originalEarnEntry.getCustomerId()));
+
         PointLedgerEntry clawbackEntry = new PointLedgerEntry();
-        clawbackEntry.setCustomerId(originalEarnEntry.getCustomerId());
-        clawbackEntry.setTransactionType(CLAWBACK);
-        clawbackEntry.setPoints(pointsToClawback.negate()); // Stored as a negative value
+        clawbackEntry.setCustomerId(customer.getCustomerId());
+        clawbackEntry.setTransactionType(TransactionType.CLAWBACK);
+        clawbackEntry.setPoints(pointsToClawback.negate()); // Negative point value
         clawbackEntry.setPurchaseId(purchaseReference);
-        clawbackEntry.setParentEntry(originalEarnEntry); // Explicit reference chain mapping back to origin
+        clawbackEntry.setParentEntry(originalEarnEntry);
 
         pointLedgerEntryRepository.save(clawbackEntry);
 
-        log.info("Successfully clawed back {} points from customer ID: {} for products {} in purchase: {}. (Using snapshot rate: {}x)",
-                pointsToClawback, originalEarnEntry.getCustomerId(), returnedProductIds, purchaseReference, historicalMultiplier);
+        // =========================================================================
+        // HIBERNATE FLUSH OPTIMIZATION:
+        // Force Hibernate to sync its cache with the database storage engine.
+        // This pushes the 'RETURNED' rows saved by the calling service into the
+        // database indexes immediately, guaranteeing our JPQL aggregate query
+        // doesn't read stale data.
+        // =========================================================================
+        customerProductLedgerRepository.flush();
+
+        // Real-time Tier Re-evaluation using your magical SQL Query
+        BigDecimal netRollingSpend = customerProductLedgerRepository.calculateNetRollingSpend(
+                customer.getCustomerId(),
+                LocalDateTime.now().minusYears(1)
+        );
+
+        // Downgrade the cached tier status instantly if their 12-month net spend dropped below threshold
+        updateCustomerTier(customer, netRollingSpend);
+
+        log.info("Successfully clawed back {} points from customer ID: {} for purchase: {}.",
+                pointsToClawback, customer.getCustomerId(), purchaseReference);
     }
 
     @Transactional(readOnly = true)
@@ -233,70 +248,27 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
     private CustomerBalanceDTO calculateActiveBalance(Customer customer) {
 
-        BigDecimal totalAvailablePoints = computeActiveBalanceFromLedger(customer.getCustomerId());
+        BigDecimal totalAvailablePoints = pointLedgerEntryRepository.calculateActivePointsBalance(customer.getCustomerId());
 
         CustomerBalanceDTO balanceDTO = new CustomerBalanceDTO();
+
         balanceDTO.setFirstName(customer.getFirstName());
         balanceDTO.setLastName(customer.getLastName());
         balanceDTO.setEmail(customer.getEmail());
         balanceDTO.setPhoneNo(customer.getPhoneNo());
         balanceDTO.setCurrentTier(customer.getCurrentTier());
         balanceDTO.setPointsBalance(totalAvailablePoints);
-        balanceDTO.setRollingSpend(BigDecimal.ZERO);
+
         return balanceDTO;
     }
 
-    private BigDecimal computeActiveBalanceFromLedger(Long customerId) {
-
-        List<PointLedgerEntry> ledger = pointLedgerEntryRepository
-                .findByCustomerIdOrderByPointLedgerEntryIdAsc(customerId);
-
-        BigDecimal totalAvailablePoints = BigDecimal.ZERO;
-        LocalDateTime now = LocalDateTime.now();
-        BigDecimal historicalDeductions = BigDecimal.ZERO;
-
-        // We iterate first to get total of the debt that we owe
-        // We ignore the award point as we are only interested in debt
-        for (PointLedgerEntry entry : ledger) {
-            if (REDEEM == entry.getTransactionType() || CLAWBACK == entry.getTransactionType()) {
-                historicalDeductions = historicalDeductions.add(entry.getPoints().abs());
-            }
+    private void updateCustomerTier(Customer customer, BigDecimal netRollingSpend) {
+        Tier appropriateTier = Tier.determineTierFromSpend(netRollingSpend);
+        if (customer.getCurrentTier() != appropriateTier) {
+            log.info("Customer ID: {} changing tier from {} to {} based on rolling spend of ${}",
+                    customer.getCustomerId(), customer.getCurrentTier(), appropriateTier, netRollingSpend);
+            customer.setCurrentTier(appropriateTier);
+            customerRepository.save(customer);
         }
-
-        // Next, we iterate again and in this loop
-        // we try to find if we have sufficient net points to redeem
-        for (PointLedgerEntry pointLedgerEntry : ledger) {
-            if (EARN == pointLedgerEntry.getTransactionType()) {
-                // Expired points should be skipped
-                if (pointLedgerEntry.getExpiryDate() != null && pointLedgerEntry.getExpiryDate().isBefore(now)) {
-                    continue;
-                }
-
-                //  Points available within this active earning bucket
-                BigDecimal bucketPoints = pointLedgerEntry.getPoints();
-
-                // If there are negative points (debt) from the past..,
-                if (historicalDeductions.compareTo(BigDecimal.ZERO) > 0) {
-                    // ... and is greater or equal than the active earning bucket...
-                    if (historicalDeductions.compareTo(bucketPoints) >= 0) {
-                        // then reduce the historicalDeduction as we paid some of the debt
-                        historicalDeductions = historicalDeductions.subtract(bucketPoints);
-                        continue;
-                    } else {
-                        // if the debt was less than the active earning bucket then
-                        // deduct the debt from the earning bucket which will
-                        // reduce our earning point
-                        bucketPoints = bucketPoints.subtract(historicalDeductions);
-                        historicalDeductions = BigDecimal.ZERO;
-                    }
-                }
-
-                // Whatever we earned in this loop add it to our total points
-                // and then go to the next earning bucket
-                totalAvailablePoints = totalAvailablePoints.add(bucketPoints);
-            }
-        }
-
-        return totalAvailablePoints;
     }
 }

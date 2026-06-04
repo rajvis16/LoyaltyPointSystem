@@ -108,6 +108,7 @@ public class ProductServiceImpl implements ProductService {
 
         entity.setName(productDTO.getName());
         entity.setPrice(productDTO.getPrice());
+        entity.setDescription(productDTO.getDescription());
 
         return entity;
     }
