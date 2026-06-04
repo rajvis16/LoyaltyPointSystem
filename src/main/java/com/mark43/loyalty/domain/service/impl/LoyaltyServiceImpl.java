@@ -10,7 +10,7 @@ import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
@@ -211,16 +211,20 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 pointsToClawback, originalEarnEntry.getCustomerId(), returnedProductIds, purchaseReference, historicalMultiplier);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public CustomerBalanceDTO getCustomerBalanceByEmail(String email) {
+
         Customer customer = customerRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: " + email));
 
         return calculateActiveBalance(customer);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public CustomerBalanceDTO getCustomerBalanceByPhone(String phoneNo) {
+
         Customer customer = customerRepository.findByPhoneNo(phoneNo)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with phone number: " + phoneNo));
 
