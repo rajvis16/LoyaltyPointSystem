@@ -116,10 +116,10 @@ public class ProductOrderServiceImpl implements ProductOrderService {
         Map<Long, Integer> netOwnedInventory = new java.util.HashMap<>();
 
         for (CustomerProductLedgerEntry record : history) {
-            if (ProductAction.BOUGHT == record.getAction()) {
+            if (BOUGHT == record.getAction()) {
                 netOwnedInventory.put(record.getProductId(),
                         netOwnedInventory.getOrDefault(record.getProductId(), 0) + record.getQuantity());
-            } else if (ProductAction.RETURNED == record.getAction()) {
+            } else if (RETURNED == record.getAction()) {
                 netOwnedInventory.put(record.getProductId(),
                         netOwnedInventory.getOrDefault(record.getProductId(), 0) - record.getQuantity());
             }
@@ -157,7 +157,7 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             returnEntry.setCustomerId(customer.getCustomerId());
             returnEntry.setProductId(product.getProductId());
             returnEntry.setPurchaseId(purchaseReference);
-            returnEntry.setAction(ProductAction.RETURNED);
+            returnEntry.setAction(RETURNED);
             returnEntry.setQuantity(returnQuantity);
             returnEntry.setTransactionDate(LocalDateTime.now());
 
