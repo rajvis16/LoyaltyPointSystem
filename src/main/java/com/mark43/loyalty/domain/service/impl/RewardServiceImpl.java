@@ -7,19 +7,19 @@ import com.mark43.loyalty.interfaces.dto.RewardDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
 @Log4j2
 @RequiredArgsConstructor
 public class RewardServiceImpl implements RewardService {
 
     private final RewardRepository rewardRepository;
 
+    @Transactional
     @Override
     public RewardDTO createReward(RewardDTO rewardDTO) {
 
@@ -35,6 +35,7 @@ public class RewardServiceImpl implements RewardService {
         return convertToDto(savedReward);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public RewardDTO getRewardById(Long rewardId) {
 
@@ -43,6 +44,7 @@ public class RewardServiceImpl implements RewardService {
         return convertToDto(reward);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<RewardDTO> getAllRewards() {
 
@@ -51,6 +53,7 @@ public class RewardServiceImpl implements RewardService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @Override
     public RewardDTO updateReward(Long rewardId, RewardDTO rewardDetails) {
 
@@ -72,6 +75,7 @@ public class RewardServiceImpl implements RewardService {
         return convertToDto(updatedReward);
     }
 
+    @Transactional
     @Override
     public void deleteReward(Long rewardId) {
 

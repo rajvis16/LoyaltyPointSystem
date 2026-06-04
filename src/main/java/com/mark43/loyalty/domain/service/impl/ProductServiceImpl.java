@@ -7,19 +7,19 @@ import com.mark43.loyalty.interfaces.dto.ProductDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
 @Log4j2
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
 
+    @Transactional
     @Override
     public ProductDTO createProduct(ProductDTO productDTO) {
 
@@ -39,6 +39,7 @@ public class ProductServiceImpl implements ProductService {
         return convertToDto(savedProduct);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public ProductDTO getProductById(Long productId) {
 
@@ -48,6 +49,7 @@ public class ProductServiceImpl implements ProductService {
         return convertToDto(product);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public ProductDTO getProductByName(String name) {
 
@@ -57,6 +59,7 @@ public class ProductServiceImpl implements ProductService {
         return convertToDto(product);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<ProductDTO> getAllProducts() {
 
@@ -65,6 +68,7 @@ public class ProductServiceImpl implements ProductService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @Override
     public ProductDTO updateProduct(Long productId, ProductDTO productDTO) {
 
@@ -86,6 +90,7 @@ public class ProductServiceImpl implements ProductService {
         return convertToDto(updatedProduct);
     }
 
+    @Transactional
     @Override
     public void deleteProduct(Long productId) {
 
