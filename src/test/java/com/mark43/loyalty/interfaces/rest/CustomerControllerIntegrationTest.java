@@ -1,7 +1,6 @@
 package com.mark43.loyalty.interfaces.rest;
 
 import com.mark43.loyalty.domain.entity.Customer;
-import com.mark43.loyalty.domain.entity.Tier;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.interfaces.dto.AddressDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
