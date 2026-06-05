@@ -30,4 +30,10 @@ public interface CustomerProductLedgerRepository extends JpaRepository<CustomerP
             @Param("customerId") Long customerId,
             @Param("startDate") LocalDateTime startDate
     );
+
+    @Query("SELECT l.productId, SUM(l.quantity) " +
+            "FROM CustomerProductLedgerEntry l " +
+            "WHERE l.customerId = :customerId AND l.purchaseId = :purchaseId " +
+            "GROUP BY l.productId")
+    List<Object[]> findNetOwnedInventory(@Param("customerId") Long customerId, @Param("purchaseId") String purchaseId);
 }

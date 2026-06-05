@@ -49,6 +49,7 @@ class ProductOrderServiceImplTest {
 
     @BeforeEach
     void setUp() {
+
         mockCustomer = new Customer();
         mockCustomer.setCustomerId(1L);
         mockCustomer.setEmail("alice@example.com");
@@ -59,6 +60,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsSucceedsAndLogsMultipleItemsWithCalculatedSpendAndTriggersLoyaltyEngine() {
+
         String purchaseRef = "TXN-777";
         Map<String, Integer> orderPayload = new LinkedHashMap<>();
         orderPayload.put("Laptop", 1);
@@ -74,22 +76,18 @@ class ProductOrderServiceImplTest {
         verify(productLedgerRepository, times(2)).save(ledgerCaptor.capture());
         List<CustomerProductLedgerEntry> savedEntries = ledgerCaptor.getAllValues();
 
-        // 1. Assert Laptop line item mapping and spending values
         CustomerProductLedgerEntry laptopEntry = savedEntries.getFirst();
         assertEquals(1L, laptopEntry.getCustomerId());
         assertEquals(101L, laptopEntry.getProductId());
         assertEquals(purchaseRef, laptopEntry.getPurchaseId());
         assertEquals(BOUGHT, laptopEntry.getAction());
         assertEquals(1, laptopEntry.getQuantity());
-        // Core Feature Check: Total spending per line item matches unit price * quantity
         assertEquals(new BigDecimal("1000.00"), laptopEntry.getTotalSpendingPerProduct());
 
-        // 2. Assert Mouse line item mapping and spending values
         CustomerProductLedgerEntry mouseEntry = savedEntries.get(1);
         assertEquals(102L, mouseEntry.getProductId());
         assertEquals(BOUGHT, mouseEntry.getAction());
         assertEquals(2, mouseEntry.getQuantity());
-        // Core Feature Check: $50.00 * 2 units = $100.00 calculated line value
         assertEquals(new BigDecimal("100.00"), mouseEntry.getTotalSpendingPerProduct());
 
         ArgumentCaptor<EarnPointsDTO> loyaltyCaptor = ArgumentCaptor.forClass(EarnPointsDTO.class);
@@ -105,6 +103,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsThrowsExceptionWhenCustomerIsMissingFromDatabase() {
+
         Map<String, Integer> payload = Collections.singletonMap("Laptop", 1);
         when(customerRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
@@ -118,6 +117,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsThrowsExceptionWhenProductNotFoundInCatalog() {
+
         Map<String, Integer> payload = Collections.singletonMap("GhostItem", 1);
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
         when(productRepository.findByName("GhostItem")).thenReturn(Optional.empty());
@@ -133,6 +133,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsThrowsExceptionWhenQuantityIsZeroOrNegative() {
+
         Map<String, Integer> payload = Collections.singletonMap("Laptop", -5);
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
 
@@ -147,6 +148,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsThrowsExceptionWhenPayloadIsNull() {
+
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
@@ -158,6 +160,7 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfBuyProductsThrowsExceptionWhenPayloadIsEmpty() {
+
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
@@ -169,20 +172,15 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfReturnProductsSucceedsForSingleProductPopulatingRefundColumn() {
+
         String purchaseRef = "TXN-100";
         Map<String, Integer> returnPayload = Collections.singletonMap("Laptop", 1);
 
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
-        when(productRepository.findByName("Laptop")).thenReturn(Optional.of(mockProduct1));
+        when(productRepository.findByNameIn(returnPayload.keySet())).thenReturn(Collections.singletonList(mockProduct1));
 
-        CustomerProductLedgerEntry initialPurchase = new CustomerProductLedgerEntry();
-        initialPurchase.setProductId(101L);
-        initialPurchase.setAction(BOUGHT);
-        initialPurchase.setQuantity(2);
-        initialPurchase.setTotalSpendingPerProduct(new BigDecimal("2000.00"));
-
-        when(productLedgerRepository.findByCustomerIdAndPurchaseId(1L, purchaseRef))
-                .thenReturn(Collections.singletonList(initialPurchase));
+        List<Object[]> mockProjection = Collections.singletonList(new Object[]{101L, 2L});
+        when(productLedgerRepository.findNetOwnedInventory(1L, purchaseRef)).thenReturn(mockProjection);
 
         productOrderService.returnProducts(new OrderRequestDTO("alice@example.com", purchaseRef, returnPayload));
 
@@ -193,31 +191,27 @@ class ProductOrderServiceImplTest {
         assertEquals(RETURNED, savedReturn.getAction());
         assertEquals(1, savedReturn.getQuantity());
         assertEquals(101L, savedReturn.getProductId());
-        // Core Feature Check: Refund logic correctly captures absolute cost valuation
-        assertEquals(new BigDecimal("1000.00"), savedReturn.getTotalSpendingPerProduct());
+        assertEquals(new BigDecimal("-1000.00"), savedReturn.getTotalSpendingPerProduct());
 
         verify(loyaltyService, times(1)).clawbackPoints(purchaseRef, Collections.singletonList(101L));
     }
 
     @Test
     void verifyIfReturnProductsSucceedsForComplexHistoryWithPopulatedLineSpend() {
+
         String purchaseRef = "TXN-200";
         Map<String, Integer> returnPayload = new LinkedHashMap<>();
         returnPayload.put("Laptop", 1);
         returnPayload.put("Mouse", 2);
 
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
-        when(productRepository.findByName("Laptop")).thenReturn(Optional.of(mockProduct1));
-        when(productRepository.findByName("Mouse")).thenReturn(Optional.of(mockProduct2));
+        when(productRepository.findByNameIn(returnPayload.keySet())).thenReturn(Arrays.asList(mockProduct1, mockProduct2));
 
-        CustomerProductLedgerEntry buyLaptop = new CustomerProductLedgerEntry(null, 1L, 101L, purchaseRef, BOUGHT, 2, new BigDecimal("2000.00"), null);
-        CustomerProductLedgerEntry returnLaptop = new CustomerProductLedgerEntry(null, 1L, 101L, purchaseRef, RETURNED, 1, new BigDecimal("1000.00"), null);
-
-        CustomerProductLedgerEntry buyMouse = new CustomerProductLedgerEntry(null, 1L, 102L, purchaseRef, BOUGHT, 5, new BigDecimal("250.00"), null);
-        CustomerProductLedgerEntry returnMouse = new CustomerProductLedgerEntry(null, 1L, 102L, purchaseRef, RETURNED, 1, new BigDecimal("50.00"), null);
-
-        List<CustomerProductLedgerEntry> complexHistory = Arrays.asList(buyLaptop, returnLaptop, buyMouse, returnMouse);
-        when(productLedgerRepository.findByCustomerIdAndPurchaseId(1L, purchaseRef)).thenReturn(complexHistory);
+        List<Object[]> mockProjection = Arrays.asList(
+                new Object[]{101L, 1L},
+                new Object[]{102L, 4L}
+        );
+        when(productLedgerRepository.findNetOwnedInventory(1L, purchaseRef)).thenReturn(mockProjection);
 
         productOrderService.returnProducts(new OrderRequestDTO("alice@example.com", purchaseRef, returnPayload));
 
@@ -226,10 +220,10 @@ class ProductOrderServiceImplTest {
         List<CustomerProductLedgerEntry> savedEntries = ledgerCaptor.getAllValues();
 
         assertEquals(1, savedEntries.get(0).getQuantity());
-        assertEquals(new BigDecimal("1000.00"), savedEntries.get(0).getTotalSpendingPerProduct());
+        assertEquals(new BigDecimal("-1000.00"), savedEntries.get(0).getTotalSpendingPerProduct());
 
         assertEquals(2, savedEntries.get(1).getQuantity());
-        assertEquals(new BigDecimal("100.00"), savedEntries.get(1).getTotalSpendingPerProduct());
+        assertEquals(new BigDecimal("-100.00"), savedEntries.get(1).getTotalSpendingPerProduct());
 
         ArgumentCaptor<List<Long>> clawbackCaptor = ArgumentCaptor.forClass(List.class);
         verify(loyaltyService, times(1)).clawbackPoints(eq(purchaseRef), clawbackCaptor.capture());
@@ -241,17 +235,15 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfReturnProductsThrowsExceptionWhenPriorReturnsAlreadyEqualOriginalPurchases() {
+
         String purchaseRef = "TXN-300";
         Map<String, Integer> returnPayload = Collections.singletonMap("Laptop", 1);
 
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
-        when(productRepository.findByName("Laptop")).thenReturn(Optional.of(mockProduct1));
+        when(productRepository.findByNameIn(returnPayload.keySet())).thenReturn(Collections.singletonList(mockProduct1));
 
-        CustomerProductLedgerEntry buyRecord = new CustomerProductLedgerEntry(null, 1L, 101L, purchaseRef, BOUGHT, 1, new BigDecimal("1000.00"), null);
-        CustomerProductLedgerEntry returnRecord = new CustomerProductLedgerEntry(null, 1L, 101L, purchaseRef, RETURNED, 1, new BigDecimal("1000.00"), null);
-
-        when(productLedgerRepository.findByCustomerIdAndPurchaseId(1L, purchaseRef))
-                .thenReturn(Arrays.asList(buyRecord, returnRecord));
+        List<Object[]> mockProjection = Collections.singletonList(new Object[]{101L, 0L});
+        when(productLedgerRepository.findNetOwnedInventory(1L, purchaseRef)).thenReturn(mockProjection);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 productOrderService.returnProducts(new OrderRequestDTO("alice@example.com", purchaseRef, returnPayload))
@@ -264,15 +256,15 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfReturnProductsThrowsExceptionWhenReturnQuantityExceedsNetOwnedBalance() {
+
         String purchaseRef = "TXN-400";
         Map<String, Integer> returnPayload = Collections.singletonMap("Laptop", 5);
 
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
-        when(productRepository.findByName("Laptop")).thenReturn(Optional.of(mockProduct1));
+        when(productRepository.findByNameIn(returnPayload.keySet())).thenReturn(Collections.singletonList(mockProduct1));
 
-        CustomerProductLedgerEntry buyRecord = new CustomerProductLedgerEntry(null, 1L, 101L, purchaseRef, BOUGHT, 2, new BigDecimal("2000.00"), null);
-        when(productLedgerRepository.findByCustomerIdAndPurchaseId(1L, purchaseRef))
-                .thenReturn(Collections.singletonList(buyRecord));
+        List<Object[]> mockProjection = Collections.singletonList(new Object[]{101L, 2L});
+        when(productLedgerRepository.findNetOwnedInventory(1L, purchaseRef)).thenReturn(mockProjection);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 productOrderService.returnProducts(new OrderRequestDTO("alice@example.com", purchaseRef, returnPayload))
@@ -285,23 +277,24 @@ class ProductOrderServiceImplTest {
 
     @Test
     void verifyIfReturnProductsThrowsExceptionWhenPurchaseReferenceIsNotFound() {
+
         String emptyRef = "TXN-EMPTY";
         Map<String, Integer> returnPayload = Collections.singletonMap("Laptop", 1);
 
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(mockCustomer));
-        when(productLedgerRepository.findByCustomerIdAndPurchaseId(1L, emptyRef)).thenReturn(Collections.emptyList());
+        when(productLedgerRepository.findNetOwnedInventory(1L, emptyRef)).thenReturn(Collections.emptyList());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 productOrderService.returnProducts(new OrderRequestDTO("alice@example.com", emptyRef, returnPayload))
         );
 
         assertTrue(exception.getMessage().contains("No original purchase ledger record found for reference: TXN-EMPTY"));
-        verify(productRepository, never()).findByName(anyString());
         verify(productLedgerRepository, never()).save(any());
     }
 
     @Test
     void verifyIfReturnProductsThrowsExceptionWhenEmailContextIsBlankOrNull() {
+
         Map<String, Integer> returnPayload = Collections.singletonMap("Laptop", 1);
 
         assertThrows(IllegalArgumentException.class, () ->

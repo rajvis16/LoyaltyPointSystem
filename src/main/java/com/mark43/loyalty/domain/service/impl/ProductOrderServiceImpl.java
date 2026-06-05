@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,6 +77,7 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             }
 
             CustomerProductLedgerEntry ledgerEntry = new CustomerProductLedgerEntry();
+
             ledgerEntry.setCustomerId(customer.getCustomerId());
             ledgerEntry.setProductId(product.getProductId());
             ledgerEntry.setPurchaseId(purchaseReference);
@@ -104,6 +106,7 @@ public class ProductOrderServiceImpl implements ProductOrderService {
 
         String customerEmail = orderRequestDTO.getCustomerEmail();
         String purchaseReference = orderRequestDTO.getPurchaseReference();
+
         Map<String, Integer> returnedProductQuantities = orderRequestDTO.getProductQuantities();
 
         if (customerEmail == null || customerEmail.isBlank()) {
@@ -117,33 +120,31 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             throw new IllegalArgumentException("Return payload cannot be empty.");
         }
 
-        // Fetch the entire append-only ledger history for this purchaseReference (bill)
-        List<CustomerProductLedgerEntry> history = customerProductLedgerRepository
-                .findByCustomerIdAndPurchaseId(customer.getCustomerId(), purchaseReference);
+        // Get customer's net current owned product : Returns an array tuple containing [productId, netOwnedQuantity]
+        List<Object[]> inventoryProjection = customerProductLedgerRepository
+                .findNetOwnedInventory(customer.getCustomerId(), purchaseReference);
 
-        if (history.isEmpty()) {
+        if (inventoryProjection.isEmpty()) {
             throw new IllegalArgumentException("No original purchase ledger record found for reference: " + purchaseReference);
         }
 
-        // STEP 1: Build the Inventory Balance Sheet (Flatten the history)
-        // Key: Product ID, Value: Net units currently owned (Bought minus previously Returned)
-        Map<Long, Integer> netOwnedInventory = new java.util.HashMap<>();
-
-        for (CustomerProductLedgerEntry record : history) {
-            if (BOUGHT == record.getAction()) {
-                netOwnedInventory.put(record.getProductId(),
-                        netOwnedInventory.getOrDefault(record.getProductId(), 0) + record.getQuantity());
-            } else if (RETURNED == record.getAction()) {
-                netOwnedInventory.put(record.getProductId(),
-                        netOwnedInventory.getOrDefault(record.getProductId(), 0) - record.getQuantity());
-            }
+        // Convert database array tuple projections to Map
+        Map<Long, Integer> netOwnedInventory = new HashMap<>();
+        for (Object[] row : inventoryProjection) {
+            netOwnedInventory.put((Long) row[0], ((Long) row[1]).intValue());
         }
 
-        // List to collect flat product IDs for the downstream loyalty engine hook
+        List<Product> productsToBeReturned = productRepository.findByNameIn(returnedProductQuantities.keySet());
+
+        Map<String, Product> productCache = new HashMap<>();
+        for (Product p : productsToBeReturned) {
+            productCache.put(p.getName(), p);
+        }
+
         List<Long> returnedProductIds = new ArrayList<>();
 
-        // STEP 2: Validate the Return Request against our clean Balance Sheet
         for (Map.Entry<String, Integer> entry : returnedProductQuantities.entrySet()) {
+
             String productName = entry.getKey();
             Integer returnQuantity = entry.getValue();
 
@@ -151,13 +152,15 @@ public class ProductOrderServiceImpl implements ProductOrderService {
                 throw new IllegalArgumentException("Return quantity must be greater than zero for product: " + productName);
             }
 
-            Product product = productRepository.findByName(productName)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found in catalog: " + productName));
+            Product product = productCache.get(productName);
+            if (product == null) {
+                throw new IllegalArgumentException("Product not found in catalog: " + productName);
+            }
 
-            // Pull exactly how many units they currently own from this bill right out of the map
+            // Pull exactly how many units they currently own right out of our database-driven map
             int currentNetOwned = netOwnedInventory.getOrDefault(product.getProductId(), 0);
 
-            // Fail-fast fraud protection check
+            // Fail-fast fraud protection checks
             if (currentNetOwned <= 0) {
                 throw new IllegalArgumentException("Customer does not own any valid units of product '" + productName + "' under this order reference.");
             }
@@ -168,17 +171,19 @@ public class ProductOrderServiceImpl implements ProductOrderService {
 
             // Append the clean, immutable RETURNED row to our ledger
             CustomerProductLedgerEntry returnEntry = new CustomerProductLedgerEntry();
+
             returnEntry.setCustomerId(customer.getCustomerId());
             returnEntry.setProductId(product.getProductId());
             returnEntry.setPurchaseId(purchaseReference);
             returnEntry.setAction(RETURNED);
             returnEntry.setQuantity(returnQuantity);
             returnEntry.setTransactionDate(LocalDateTime.now());
-            returnEntry.setTotalSpendingPerProduct(product.getPrice().multiply(BigDecimal.valueOf(returnQuantity)));
+
+            BigDecimal refundAmount = product.getPrice().multiply(BigDecimal.valueOf(returnQuantity));
+            returnEntry.setTotalSpendingPerProduct(refundAmount.negate());
 
             customerProductLedgerRepository.save(returnEntry);
 
-            // Populate the flat list for the loyalty engine (1 entry per unit item)
             for (int i = 0; i < returnQuantity; i++) {
                 returnedProductIds.add(product.getProductId());
             }
@@ -186,7 +191,6 @@ public class ProductOrderServiceImpl implements ProductOrderService {
             log.info("Logged return of {}x '{}' under transaction {}", returnQuantity, productName, purchaseReference);
         }
 
-        // THE FINAL BRIDGE: Call our point clawback
         loyaltyService.clawbackPoints(purchaseReference, returnedProductIds);
 
         log.info("All returned line-items and point clawbacks committed successfully.");

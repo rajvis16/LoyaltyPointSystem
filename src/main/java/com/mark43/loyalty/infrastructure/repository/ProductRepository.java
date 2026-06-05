@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query("SELECT COALESCE(SUM(p.price), 0.00) FROM Product p WHERE p.productId IN :productIds")
     BigDecimal calculateTotalSumByIds(@Param("productIds") List<Long> productIds);
+
+    List<Product> findByNameIn(Collection<String> names);
 }
