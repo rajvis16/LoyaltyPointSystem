@@ -721,4 +721,106 @@ class ProductOrderControllerIntegrationTest {
                 .count();
         assertEquals(0, returnedRowCount, "A product ledger transaction row was written with an invalid RETURNED token!");
     }
+
+    @Test
+    void verifyPartialReturnRejectsEntirePayloadIfSingleProductExceedsOwnedInventory() throws Exception {
+        String customerEmail = "partial.exploit@example.com";
+
+        Customer customer = new Customer();
+        customer.setFirstName("Raj");
+        customer.setLastName("Singh");
+        customer.setEmail(customerEmail);
+        customer.setPhoneNo("555-1122");
+        customer.setCurrentTier(SILVER);
+        customerRepository.save(customer);
+
+        // Purchase baseline: 2 Mice ($100) and 1 Laptop ($1000)
+        Map<String, Integer> buyItems = new HashMap<>();
+        buyItems.put("Ergonomic Mouse", 2);
+        buyItems.put("Premium Laptop", 1);
+
+        OrderRequestDTO buyPayload = new OrderRequestDTO(customerEmail, "TXN-PARTIAL-CHECK", buyItems);
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buyPayload)))
+                .andExpect(status().isCreated());
+
+        // Toxic Return Attempt: Returning 1 Laptop (LEGAL) but 3 Mice (ILLEGAL - only owns 2)
+        Map<String, Integer> exploitReturnItems = new HashMap<>();
+        exploitReturnItems.put("Premium Laptop", 1);
+        exploitReturnItems.put("Ergonomic Mouse", 3);
+
+        OrderRequestDTO exploitPayload = new OrderRequestDTO(customerEmail, "TXN-PARTIAL-CHECK", exploitReturnItems);
+
+        String errorResponse = mockMvc.perform(post("/api/v1/orders/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(exploitPayload)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Validate atomic rollback: The legal laptop return must NOT be committed because the mouse check failed
+        assertTrue(errorResponse.contains("Invalid return request"));
+
+        List<CustomerProductLedgerEntry> ledgerRows = customerProductLedgerRepository.findAll().stream()
+                .filter(row -> row.getCustomerId().equals(customer.getCustomerId())).toList();
+
+        // Assert table remains completely clean of ANY RETURNED entries due to transaction rollback
+        assertEquals(2, ledgerRows.size(), "Transaction failed to execute atomically; partial changes leaked!");
+        long returnedCount = ledgerRows.stream().filter(row -> row.getAction() == ProductAction.RETURNED).count();
+        assertEquals(0, returnedCount);
+    }
+
+    @Test
+    void verifyReturnFailsWhenPurchaseReferenceDoesNotExist() throws Exception {
+        String customerEmail = "ghost.invoice@example.com";
+
+        Customer customer = new Customer();
+        customer.setFirstName("Raj");
+        customer.setLastName("Singh");
+        customer.setEmail(customerEmail);
+        customer.setPhoneNo("555-0099");
+        customer.setCurrentTier(SILVER);
+        customerRepository.save(customer);
+
+        // Attempt to execute a return against a completely fake order reference string
+        Map<String, Integer> returnItems = new HashMap<>();
+        returnItems.put("Premium Laptop", 1);
+
+        OrderRequestDTO ghostPayload = new OrderRequestDTO(customerEmail, "TXN-FAKE-INV-999", returnItems);
+
+        String errorResponse = mockMvc.perform(post("/api/v1/orders/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ghostPayload)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Assert that the customer is informed that the purchase anchor reference is missing
+        assertTrue(errorResponse.contains("No original purchase ledger record found for reference: TXN-FAKE-INV-999"));
+    }
+
+    @Test
+    void verifyEndpointsRejectZeroOrNegativeQuantities() throws Exception {
+        String customerEmail = "bounds.check@example.com";
+
+        // Attempt an exploit request containing an inverse mathematical signed quantity
+        Map<String, Integer> toxicItems = new HashMap<>();
+        toxicItems.put("Premium Laptop", -2); // Negative boundary input injection
+
+        OrderRequestDTO toxicPayload = new OrderRequestDTO(customerEmail, "TXN-BOUNDS-CHECK", toxicItems);
+
+        // The input validation tier or business layer should catch this bounds error immediately
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(toxicPayload)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/orders/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(toxicPayload)))
+                .andExpect(status().isBadRequest());
+    }
 }
