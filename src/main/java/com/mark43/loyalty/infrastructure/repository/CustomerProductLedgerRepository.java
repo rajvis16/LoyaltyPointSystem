@@ -19,10 +19,12 @@ public interface CustomerProductLedgerRepository extends JpaRepository<CustomerP
      */
     List<CustomerProductLedgerEntry> findByCustomerIdAndPurchaseId(Long customerId, String purchaseId);
 
-    @Query("SELECT COALESCE(SUM(" +
-            "  CASE WHEN c.action = com.mark43.loyalty.domain.entity.ProductAction.BOUGHT THEN c.totalSpendingPerProduct " +
-            "       WHEN c.action = com.mark43.loyalty.domain.entity.ProductAction.RETURNED THEN -c.totalSpendingPerProduct " +
-            "       ELSE 0.00 END), 0.00) " +
+    /**
+     * Calculates the true net rolling financial spend over a specified lookback window.
+     * Because BOUGHT rows are stored positive and RETURNED rows are natively stored negative,
+     * a clean scalar SUM aggregates the mathematical reality automatically with index efficiency.
+     */
+    @Query("SELECT COALESCE(SUM(c.totalSpendingPerProduct), 0.00) " +
             "FROM CustomerProductLedgerEntry c " +
             "WHERE c.customerId = :customerId " +
             "AND c.transactionDate >= :startDate")
@@ -31,7 +33,14 @@ public interface CustomerProductLedgerRepository extends JpaRepository<CustomerP
             @Param("startDate") LocalDateTime startDate
     );
 
-    @Query("SELECT l.productId, SUM(l.quantity) " +
+    /**
+     * Groups and computes the absolute net product quantity remaining with the customer
+     * for a given purchase context reference to prevent cross-order return exploitation.
+     */
+    @Query("SELECT l.productId, " +
+            "SUM(CASE WHEN l.action = com.mark43.loyalty.domain.entity.ProductAction.BOUGHT THEN l.quantity " +
+            "         WHEN l.action = com.mark43.loyalty.domain.entity.ProductAction.RETURNED THEN -l.quantity " +
+            "         ELSE 0 END) " +
             "FROM CustomerProductLedgerEntry l " +
             "WHERE l.customerId = :customerId AND l.purchaseId = :purchaseId " +
             "GROUP BY l.productId")
