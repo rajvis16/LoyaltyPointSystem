@@ -36,9 +36,9 @@ public class DataLoader implements CommandLineRunner {
         log.info("Bootstrapping comprehensive retail loyalty dataset...");
 
         if (customerRepository.count() == 0) {
-            Address mainAddr = new Address(100, "Federal St", "Boston", "MA", "USA");
-            Address northAddr = new Address(25, "Back Bay Way", "Boston", "MA", "USA");
-            Address southAddr = new Address(450, "Summer St", "Boston", "MA", "USA");
+            Address mainAddr = new Address(100, "Federal St", "Boston", "MA", "01010", "USA");
+            Address northAddr = new Address(25, "Back Bay Way", "Boston", "MA", "15465","USA");
+            Address southAddr = new Address(450, "Summer St", "Boston", "MA", "12321", "USA");
 
             customerRepository.saveAll(List.of(
                     new Customer(null, "Alice", "Smith", "alice@example.com", "555-0101", SILVER, mainAddr),

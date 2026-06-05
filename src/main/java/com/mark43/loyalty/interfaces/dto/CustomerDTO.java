@@ -27,6 +27,6 @@ public class CustomerDTO {
     private Tier currentTier;
 
     @NotNull(message = "Address details are required.")
-    @Valid // Cascades validation down into the nested AddressDTO properties
+    @Valid
     private AddressDTO address;
 }
