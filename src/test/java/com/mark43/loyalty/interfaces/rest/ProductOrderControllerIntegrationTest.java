@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.mark43.loyalty.domain.entity.ProductAction.BOUGHT;
+import static com.mark43.loyalty.domain.entity.ProductAction.RETURNED;
 import static com.mark43.loyalty.domain.entity.Tier.*;
 import static com.mark43.loyalty.domain.entity.TransactionType.EARN;
 import static org.junit.jupiter.api.Assertions.*;
@@ -446,7 +447,7 @@ class ProductOrderControllerIntegrationTest {
 
         // Locate and confirm the immutable RETURNED ledger entry row details
         CustomerProductLedgerEntry returnRow = customerProductLedgerEntries.stream()
-                .filter(row -> row.getAction() == ProductAction.RETURNED)
+                .filter(row -> row.getAction() == RETURNED)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Missing custom inventory trail history block for RETURNED row item"));
 
@@ -559,5 +560,165 @@ class ProductOrderControllerIntegrationTest {
         assertEquals(GOLD, balanceDto.getCurrentTier());
         assertEquals(new BigDecimal("900.00"), balanceDto.getPointsBalance());
         assertEquals(new BigDecimal("1200.00"), balanceDto.getRollingSpend());
+    }
+
+    @Test
+    void verifyCustomerFailsToRedeemBeyondAvailablePointsBalance() throws Exception {
+        String customerEmail = "overspend.raj@example.com";
+
+        // 1. Establish the baseline state - Customer registered explicitly under SILVER tier
+        Customer customer = new Customer();
+        customer.setFirstName("Raj");
+        customer.setLastName("Singh");
+        customer.setEmail(customerEmail);
+        customer.setPhoneNo("555-8822");
+        customer.setCurrentTier(SILVER);
+        customerRepository.save(customer);
+
+        // =========================================================================
+        // STEP 1: INITIAL PURCHASE -> Earn exactly 1,200.00 points (Cross to GOLD)
+        // =========================================================================
+        Map<String, Integer> buyItems = new HashMap<>();
+        buyItems.put("Premium Laptop", 1);  // $1000.00
+        buyItems.put("Ergonomic Mouse", 4);   // $200.00
+
+        OrderRequestDTO buyPayload = new OrderRequestDTO(customerEmail, "TXN-OVERSPEND-BUY", buyItems);
+
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buyPayload)))
+                .andExpect(status().isCreated());
+
+        // Intermediate sanity check: User successfully made it to Gold with 1200 points
+        Customer customerState = customerRepository.findByEmail(customerEmail).orElseThrow();
+        assertEquals(GOLD, customerState.getCurrentTier());
+
+        // =========================================================================
+        // STEP 2: ILLEGAL REDEMPTION -> Attempt to spend more than 1,200.00 points
+        // =========================================================================
+        // Seed a high-tier premium reward that costs 5,000.00 points
+        rewardRepository.save(new Reward(null, "Ultimate Luxury Weekend Getaway", "Ultimate Luxury Weekend Getaway desc",
+                new BigDecimal("5000.00")));
+
+        RedeemRewardDTO toxicRedeemPayload = new RedeemRewardDTO(customerEmail, "Ultimate Luxury Weekend Getaway");
+
+        // We expect a 400 Bad Request due to the business rule violation
+        String errorJsonResponse = mockMvc.perform(post("/api/v1/loyalty/redeem")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(toxicRedeemPayload)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // =========================================================================
+        // STEP 3: EXCEPTION PAYLOAD AUDIT -> Ensure user is properly informed
+        // =========================================================================
+        // Verify that the error body string contains explicit details letting the customer know why it failed
+        assertTrue(errorJsonResponse.contains("Insufficient points balance"),
+                "The error message did not properly inform the customer of their insufficient balance!");
+        assertTrue(errorJsonResponse.contains("Required: 5000.00"),
+                "The error payload failed to state the required points value specification.");
+        assertTrue(errorJsonResponse.contains("Active Available: 1200.00"),
+                "The error payload failed to expose the customer's actual available point standing.");
+
+        // =========================================================================
+        // STEP 4: LEDGER INTEGRITY AUDIT -> Ensure no rogue rows were appended
+        // =========================================================================
+        // The point ledger must still contain exactly 1 row (The initial EARN row). The REDEEM must have rolled back.
+        List<PointLedgerEntry> pointLedgerRows = pointLedgerRepository.findAll().stream()
+                .filter(row -> row.getCustomerId().equals(customerState.getCustomerId())).toList();
+
+        assertEquals(1, pointLedgerRows.size(),
+                "CRITICAL: An invalid redemption attempt actually appended a row or failed to roll back the transaction context!");
+
+        assertEquals(TransactionType.EARN, pointLedgerRows.getFirst().getTransactionType(),
+                "The lone surviving transaction row type should be an EARN state.");
+    }
+
+    @Test
+    void verifyCustomerFailsToReturnMoreProductsThanHistoricallyPurchased() throws Exception {
+
+        String customerEmail = "fraud.check.raj@example.com";
+
+        // 1. Establish baseline state - Explicitly registered under the SILVER tier
+        Customer customer = new Customer();
+        customer.setFirstName("Raj");
+        customer.setLastName("Singh");
+        customer.setEmail(customerEmail);
+        customer.setPhoneNo("555-6622");
+        customer.setCurrentTier(SILVER);
+        customerRepository.save(customer);
+
+        // =========================================================================
+        // STEP 1: FIRST PURCHASE -> Stay in SILVER ($50.00 Spend)
+        // =========================================================================
+        Map<String, Integer> txn1Items = new HashMap<>();
+        txn1Items.put("Ergonomic Mouse", 1); // $50.00
+
+        OrderRequestDTO txn1Payload = new OrderRequestDTO(customerEmail, "TXN-FRAUD-CHECK", txn1Items);
+
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(txn1Payload)))
+                .andExpect(status().isCreated());
+
+        // Validate state 1: Customer spend is $50.00, remaining securely in SILVER
+        Customer customerState1 = customerRepository.findByEmail(customerEmail).orElseThrow();
+        assertEquals(SILVER, customerState1.getCurrentTier(), "Customer should still be in the SILVER tier zone");
+
+        // =========================================================================
+        // STEP 2: SECOND PURCHASE -> Add items, still stay in SILVER ($100.00 Total Spend)
+        // =========================================================================
+        Map<String, Integer> txn2Items = new HashMap<>();
+        txn2Items.put("Ergonomic Mouse", 1); // An additional $50.00 spend
+
+        OrderRequestDTO txn2Payload = new OrderRequestDTO(customerEmail, "TXN-FRAUD-CHECK", txn2Items);
+
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(txn2Payload)))
+                .andExpect(status().isCreated());
+
+        // Validate state 2: Customer aggregate spend is $100.00, still well below the $1000.00 GOLD line
+        Customer customerState2 = customerRepository.findByEmail(customerEmail).orElseThrow();
+        assertEquals(SILVER, customerState2.getCurrentTier(), "Customer must remain in the SILVER tier zone");
+
+        // =========================================================================
+        // STEP 3: TOXIC RETURN ATTEMPT -> Try to return 5 mice (Only 2 were ever bought)
+        // =========================================================================
+        Map<String, Integer> exploitReturnItems = new HashMap<>();
+        exploitReturnItems.put("Ergonomic Mouse", 5); // Attempting to return 5 units
+
+        OrderRequestDTO exploitPayload = new OrderRequestDTO(customerEmail, "TXN-FRAUD-CHECK", exploitReturnItems);
+
+        // We expect a 400 Bad Request block to drop because the customer doesn't own 5 units
+        String errorJsonResponse = mockMvc.perform(post("/api/v1/orders/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(exploitPayload)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // =========================================================================
+        // STEP 4: AUDIT EXCEPTION RESPONSE & DATABASE ROLLBACK SANIY
+        // =========================================================================
+
+        // 1. 💡 FIXED: Align assertion text checking with the exact production error message string
+        assertTrue(errorJsonResponse.contains("Invalid return request") && errorJsonResponse.contains("net owns 2 unit(s)"),
+                "The error response text failed to accurately inform the client of the item mismatch validation block.");
+
+        // 2. Audit Ledger Rollbacks: Ensure no toxic RETURNED rows were appended to the tables
+        List<CustomerProductLedgerEntry> globalProductLedger = customerProductLedgerRepository.findAll().stream()
+                .filter(row -> row.getCustomerId().equals(customerState2.getCustomerId())).toList();
+
+        // It must contain precisely 2 entries (Both belonging to the BOUGHT actions). The toxic return must completely roll back.
+        assertEquals(2, globalProductLedger.size(), "CRITICAL: The invalid return attempt leaked a row into the database instead of executing a rollback!");
+
+        long returnedRowCount = globalProductLedger.stream()
+                .filter(row -> row.getAction() == RETURNED)
+                .count();
+        assertEquals(0, returnedRowCount, "A product ledger transaction row was written with an invalid RETURNED token!");
     }
 }
