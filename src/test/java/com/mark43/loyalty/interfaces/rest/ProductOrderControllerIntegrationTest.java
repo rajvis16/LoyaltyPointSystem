@@ -1,11 +1,10 @@
 package com.mark43.loyalty.interfaces.rest;
 
 import com.mark43.loyalty.domain.entity.*;
-import com.mark43.loyalty.infrastructure.repository.CustomerProductLedgerRepository;
-import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
-import com.mark43.loyalty.infrastructure.repository.PointLedgerEntryRepository;
-import com.mark43.loyalty.infrastructure.repository.ProductRepository;
+import com.mark43.loyalty.infrastructure.repository.*;
+import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.OrderRequestDTO;
+import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +24,7 @@ import static com.mark43.loyalty.domain.entity.ProductAction.BOUGHT;
 import static com.mark43.loyalty.domain.entity.Tier.*;
 import static com.mark43.loyalty.domain.entity.TransactionType.EARN;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +51,9 @@ class ProductOrderControllerIntegrationTest {
     @Autowired
     private PointLedgerEntryRepository pointLedgerRepository;
 
+    @Autowired
+    private RewardRepository rewardRepository;
+
     private Product laptop;
     private Product mouse;
 
@@ -60,12 +63,15 @@ class ProductOrderControllerIntegrationTest {
         customerProductLedgerRepository.deleteAll();
         customerRepository.deleteAll();
         productRepository.deleteAll();
+        rewardRepository.deleteAll();
 
         // Seed core catalog elements
         laptop = productRepository.save(new Product(null, "Premium Laptop", "High-end developer workspace", new BigDecimal("1000.00")));
         mouse = productRepository.save(new Product(null, "Ergonomic Mouse", "Wireless precision tracking", new BigDecimal("50.00")));
 
-        // Step 1: Establish the baseline state - Customer registered explicitly under SILVER tier
+        rewardRepository.save(new Reward(null, "$25 Gift Card", "$25 Gift Card desc", new BigDecimal("300.00")));
+
+        // Establish the baseline state - Customer registered explicitly under SILVER tier
         Customer customer = new Customer();
         customer.setFirstName("Raj");
         customer.setLastName("Singh");
@@ -470,5 +476,88 @@ class ProductOrderControllerIntegrationTest {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         assertEquals(new BigDecimal("100.00"), netAvailablePoints, "Net accumulated customer points balance calculation mismatched engine logic checks!");
+    }
+
+    @Test
+    void verifyCustomerJourneyFromSilverToGoldAndRedeemingTwentyFivePercentOfPoints() throws Exception {
+
+        String customerEmail = "redeem.raj@example.com";
+
+        Customer customer = new Customer();
+        customer.setFirstName("Raj");
+        customer.setLastName("Singh");
+        customer.setEmail(customerEmail);
+        customer.setPhoneNo("555-7711");
+        customer.setCurrentTier(SILVER);
+        customerRepository.save(customer);
+
+        // =========================================================================
+        // STEP 1: INITIAL PURCHASE -> Cross into GOLD Threshold ($1,200.00 Spend)
+        // =========================================================================
+        Map<String, Integer> buyItems = new HashMap<>();
+        buyItems.put("Premium Laptop", 1);  // $1000.00
+        buyItems.put("Ergonomic Mouse", 4);   // $200.00
+
+        OrderRequestDTO buyPayload = new OrderRequestDTO(customerEmail, "TXN-REDEEM-BUY", buyItems);
+
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buyPayload)))
+                .andExpect(status().isCreated());
+
+        Customer customerState1 = customerRepository.findByEmail(customerEmail).orElseThrow();
+        assertEquals(GOLD, customerState1.getCurrentTier());
+
+        // =========================================================================
+        // STEP 2: REWARD REDEMPTION -> Deduct exactly 25% of point pool (300.00 points)
+        // =========================================================================
+        RedeemRewardDTO redeemPayload = new RedeemRewardDTO(customerEmail, "$25 Gift Card");
+
+        mockMvc.perform(post("/api/v1/loyalty/redeem")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(redeemPayload)))
+                .andExpect(status().isOk());
+
+        // =========================================================================
+        // CRITICAL DEEP AUDIT VALUATION: REDEMPTION STATE VERIFICATION
+        // =========================================================================
+        Customer finalCustomer = customerRepository.findByEmail(customerEmail).orElseThrow();
+        assertEquals(GOLD, finalCustomer.getCurrentTier());
+
+        List<CustomerProductLedgerEntry> productLedgerRows = customerProductLedgerRepository.findAll().stream()
+                .filter(row -> row.getCustomerId().equals(finalCustomer.getCustomerId())).toList();
+        assertEquals(2, productLedgerRows.size());
+
+        List<PointLedgerEntry> pointLedgerRows = pointLedgerRepository.findAll().stream()
+                .filter(row -> row.getCustomerId().equals(finalCustomer.getCustomerId())).toList();
+        assertEquals(2, pointLedgerRows.size());
+
+        PointLedgerEntry redeemRow = pointLedgerRows.stream()
+                .filter(row -> row.getTransactionType() == TransactionType.REDEEM).findFirst().orElseThrow();
+        assertEquals(new BigDecimal("-300.00"), redeemRow.getPoints());
+
+        BigDecimal netAvailablePoints = pointLedgerRows.stream()
+                .map(PointLedgerEntry::getPoints)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(new BigDecimal("900.00"), netAvailablePoints);
+
+        // =========================================================================
+        // STEP 3: API CONTRACT CHECK -> Audit updated CustomerBalanceDTO fields
+        // =========================================================================
+        String jsonResponse = mockMvc.perform(get("/api/v1/loyalty/balance/email")
+                        .param("email", customerEmail)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        CustomerBalanceDTO balanceDto = objectMapper.readValue(jsonResponse, CustomerBalanceDTO.class);
+
+        assertNotNull(balanceDto);
+        assertEquals("Raj", balanceDto.getFirstName());
+        assertEquals(GOLD, balanceDto.getCurrentTier());
+        assertEquals(new BigDecimal("900.00"), balanceDto.getPointsBalance());
+        assertEquals(new BigDecimal("1200.00"), balanceDto.getRollingSpend());
     }
 }

@@ -249,15 +249,27 @@ public class LoyaltyServiceImpl implements LoyaltyService {
     private CustomerBalanceDTO calculateActiveBalance(Customer customer) {
 
         BigDecimal totalAvailablePoints = pointLedgerEntryRepository.calculateActivePointsBalance(customer.getCustomerId());
+        if (totalAvailablePoints == null) {
+            totalAvailablePoints = BigDecimal.ZERO;
+        }
+
+        BigDecimal netRollingSpend = customerProductLedgerRepository.calculateNetRollingSpend(
+                customer.getCustomerId(),
+                LocalDateTime.now().minusYears(1)
+        );
+
+        if (netRollingSpend == null) {
+            netRollingSpend = BigDecimal.ZERO;
+        }
 
         CustomerBalanceDTO balanceDTO = new CustomerBalanceDTO();
-
         balanceDTO.setFirstName(customer.getFirstName());
         balanceDTO.setLastName(customer.getLastName());
         balanceDTO.setEmail(customer.getEmail());
         balanceDTO.setPhoneNo(customer.getPhoneNo());
         balanceDTO.setCurrentTier(customer.getCurrentTier());
-        balanceDTO.setPointsBalance(totalAvailablePoints);
+        balanceDTO.setPointsBalance(totalAvailablePoints.setScale(2, RoundingMode.HALF_UP));
+        balanceDTO.setRollingSpend(netRollingSpend.setScale(2, RoundingMode.HALF_UP));
 
         return balanceDTO;
     }
