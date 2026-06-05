@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -82,9 +83,11 @@ class LoyaltyServiceImplTest {
     void verifyIfAnExceptionIsThrownWhenPhoneNoAlreadyExist() {
 
         CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, null);
+
         when(customerRepository.findByPhoneNo(dto.getPhoneNo())).thenReturn(Optional.of(new Customer()));
 
         assertThrows(IllegalArgumentException.class, () -> loyaltyService.registerCustomer(dto));
+
         verify(customerRepository, never()).save(any(Customer.class));
     }
 
@@ -117,7 +120,8 @@ class LoyaltyServiceImplTest {
         assertEquals(99L, savedEntry.getCustomerId());
         assertEquals(EARN, savedEntry.getTransactionType());
         assertEquals(new BigDecimal("150.00"), savedEntry.getPoints()); // 100.00 * 1.5
-        assertEquals(new BigDecimal("1.5"), savedEntry.getTierPointUsed()); // Secured historical snapshot check
+        assertEquals(new BigDecimal("150.00"), savedEntry.getRemainingPoints()); // 💡 Asserts Option A initialization match
+        assertEquals(new BigDecimal("1.5"), savedEntry.getTierPointUsed());
         assertEquals("order-123", savedEntry.getPurchaseId());
     }
 
@@ -138,9 +142,9 @@ class LoyaltyServiceImplTest {
     }
 
     @Test
-    void verifyIfRedemptionSucceedsWithFastDatabaseSummationCheck() {
+    void verifyIfRedemptionSucceedsWithFIFOExpiryBucketPeeling() {
 
-        RedeemRewardDTO dto = new RedeemRewardDTO("raj@example.com", "Free Coffee");
+        RedeemRewardDTO dto = new RedeemRewardDTO("raj@example.com", "$15 Store Checkout Credit");
 
         Customer customer = new Customer();
         customer.setCustomerId(1L);
@@ -148,25 +152,52 @@ class LoyaltyServiceImplTest {
 
         Reward reward = new Reward();
         reward.setRewardId(50L);
-        reward.setName("Free Coffee");
-        reward.setPointsRequired(new BigDecimal("30.00"));
+        reward.setName("$15 Store Checkout Credit");
+        reward.setPointsRequired(new BigDecimal("150.00")); // Needs 150 points
 
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
         when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
 
-        when(pointLedgerEntryRepository.calculateActivePointsBalance(customer.getCustomerId()))
-                .thenReturn(new BigDecimal("100.00"));
+        when(pointLedgerEntryRepository.calculateActivePointsBalance(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(new BigDecimal("200.00"));
+
+        // Setup mock pools to evaluate the sequential FIFO algorithm loops
+        PointLedgerEntry bucket1 = new PointLedgerEntry();
+        bucket1.setTransactionType(EARN);
+        bucket1.setRemainingPoints(new BigDecimal("100.00")); // Oldest bucket has 100 points
+
+        PointLedgerEntry bucket2 = new PointLedgerEntry();
+        bucket2.setTransactionType(EARN);
+        bucket2.setRemainingPoints(new BigDecimal("100.00")); // Second bucket has 100 points
+
+        List<PointLedgerEntry> mockActiveBuckets = new ArrayList<>(List.of(bucket1, bucket2));
+        when(pointLedgerEntryRepository.findAvailableEarnEntries(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(mockActiveBuckets);
 
         loyaltyService.redeemReward(dto);
 
-        ArgumentCaptor<PointLedgerEntry> entryCaptor = ArgumentCaptor.forClass(PointLedgerEntry.class);
-        verify(pointLedgerEntryRepository, times(1)).save(entryCaptor.capture());
+        // Verify that Bucket 1 was completely emptied
+        assertEquals(BigDecimal.ZERO, bucket1.getRemainingPoints());
+        // Verify that Bucket 2 covered the remaining 50 points needed (100 - 50)
+        assertEquals(new BigDecimal("50.00"), bucket2.getRemainingPoints());
 
-        PointLedgerEntry savedEntry = entryCaptor.getValue();
-        assertEquals(1L, savedEntry.getCustomerId());
-        assertEquals(REDEEM, savedEntry.getTransactionType());
-        assertEquals(new BigDecimal("-30.00"), savedEntry.getPoints());
-        assertEquals(50L, savedEntry.getRewardId());
+        // Verify that both active buckets were updated and saved during the loop iterations
+        verify(pointLedgerEntryRepository, times(1)).save(bucket1);
+        verify(pointLedgerEntryRepository, times(1)).save(bucket2);
+
+        // 💡 FIX: Capture all 3 total invocations that hit the repository save gateway
+        ArgumentCaptor<PointLedgerEntry> entryCaptor = ArgumentCaptor.forClass(PointLedgerEntry.class);
+        verify(pointLedgerEntryRepository, times(3)).save(entryCaptor.capture());
+
+        // 💡 FIX: Extract the 3rd invocation (index 2), which represents the final REDEEM record
+        List<PointLedgerEntry> capturedEntries = entryCaptor.getAllValues();
+        PointLedgerEntry savedRedeemRecord = capturedEntries.get(2);
+
+        assertEquals(1L, savedRedeemRecord.getCustomerId());
+        assertEquals(REDEEM, savedRedeemRecord.getTransactionType());
+        assertEquals(new BigDecimal("-150.00"), savedRedeemRecord.getPoints());
+        assertEquals(BigDecimal.ZERO, savedRedeemRecord.getRemainingPoints());
+        assertEquals(50L, savedRedeemRecord.getRewardId());
     }
 
     @Test
@@ -185,17 +216,17 @@ class LoyaltyServiceImplTest {
         when(customerRepository.findByEmail(dto.getCustomerEmail())).thenReturn(Optional.of(customer));
         when(rewardRepository.findByName(dto.getRewardName())).thenReturn(Optional.of(reward));
 
-        when(pointLedgerEntryRepository.calculateActivePointsBalance(customer.getCustomerId()))
+        when(pointLedgerEntryRepository.calculateActivePointsBalance(eq(1L), any(LocalDateTime.class)))
                 .thenReturn(new BigDecimal("20.00"));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> loyaltyService.redeemReward(dto));
 
         assertEquals("Insufficient points balance. Required: 50.00, Active Available: 20.00", exception.getMessage());
-        verify(pointLedgerEntryRepository, never()).save(any());
+        verify(pointLedgerEntryRepository, never()).findAvailableEarnEntries(anyLong(), any());
     }
 
     @Test
-    void verifyIfClawbackSucceedsUsingIntelligentSqlSummationAndHistoricalMultiplier() {
+    void verifyIfClawbackSucceedsUsingOptionADirectReductionAndHistoricalMultiplier() {
 
         String purchaseRef = "purchase-999";
         List<Long> returnedProductIds = Arrays.asList(101L, 102L);
@@ -204,6 +235,7 @@ class LoyaltyServiceImplTest {
         originalEarn.setPointLedgerEntryId(777L);
         originalEarn.setCustomerId(43L);
         originalEarn.setTransactionType(EARN);
+        originalEarn.setRemainingPoints(new BigDecimal("150.00")); // Parent currently has 150 points remaining
         originalEarn.setTierPointUsed(new BigDecimal("1.5")); // Gold snapshot rate
 
         Customer customer = new Customer();
@@ -221,16 +253,25 @@ class LoyaltyServiceImplTest {
 
         loyaltyService.clawbackPoints(purchaseRef, returnedProductIds);
 
-        verify(customerProductLedgerRepository, times(1)).flush();
+        // 1. Verify that the parent entry's remaining points were dropped by 105.00 (150 - 105 = 45)
+        assertEquals(new BigDecimal("45.00"), originalEarn.getRemainingPoints());
+        verify(pointLedgerEntryRepository, times(1)).save(originalEarn);
 
+        // 2. Capture both total invocations that hit the repository save gateway
         ArgumentCaptor<PointLedgerEntry> entryCaptor = ArgumentCaptor.forClass(PointLedgerEntry.class);
-        verify(pointLedgerEntryRepository, times(1)).save(entryCaptor.capture());
+        verify(pointLedgerEntryRepository, times(2)).save(entryCaptor.capture());
 
-        PointLedgerEntry savedClawback = entryCaptor.getValue();
+        // 3. Extract the 2nd invocation (index 1), which represents the final CLAWBACK audit record
+        List<PointLedgerEntry> capturedEntries = entryCaptor.getAllValues();
+        PointLedgerEntry savedClawback = capturedEntries.get(1);
+
         assertEquals(43L, savedClawback.getCustomerId());
         assertEquals(CLAWBACK, savedClawback.getTransactionType());
         assertEquals(new BigDecimal("-105.00"), savedClawback.getPoints()); // $70.00 * 1.5 historical rate
+        assertEquals(BigDecimal.ZERO, savedClawback.getRemainingPoints()); // Clawbacks can't be spend pools
         assertEquals(originalEarn, savedClawback.getParentEntry());
+
+        verify(customerProductLedgerRepository, times(1)).flush();
     }
 
     @Test
@@ -245,7 +286,8 @@ class LoyaltyServiceImplTest {
         customer.setCurrentTier(Tier.PLATINUM);
 
         when(customerRepository.findByEmail(email)).thenReturn(Optional.of(customer));
-        when(pointLedgerEntryRepository.calculateActivePointsBalance(1L)).thenReturn(new BigDecimal("500.00"));
+        when(pointLedgerEntryRepository.calculateActivePointsBalance(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(new BigDecimal("500.00"));
 
         CustomerBalanceDTO result = loyaltyService.getCustomerBalanceByEmail(email);
 

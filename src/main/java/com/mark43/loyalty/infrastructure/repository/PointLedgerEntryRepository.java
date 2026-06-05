@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,7 +37,25 @@ public interface PointLedgerEntryRepository extends JpaRepository<PointLedgerEnt
      */
     Optional<PointLedgerEntry> findByPurchaseIdAndTransactionType(String purchaseReference, TransactionType transactionType);
 
-    @Query("SELECT COALESCE(SUM(p.points), 0.00) FROM PointLedgerEntry p WHERE p.customerId = :customerId")
-    BigDecimal calculateActivePointsBalance(@Param("customerId") Long customerId);
+    /**
+     * Sum all of the remaining points for EARN that are unexpired
+     */
+    @Query("SELECT COALESCE(SUM(p.remainingPoints), 0.00) FROM PointLedgerEntry p " +
+            "WHERE p.customerId = :customerId " +
+            "AND p.transactionType = com.mark43.loyalty.domain.entity.TransactionType.EARN " +
+            "AND p.expiryDate > :now")
+    BigDecimal calculateActivePointsBalance(@Param("customerId") Long customerId, @Param("now") LocalDateTime now);
+
+    /**
+     * Finds all unexpired, active EARN point buckets for a customer
+     * that still have spendable balances, ordered by expiration date (closest first).
+     */
+    @Query("SELECT p FROM PointLedgerEntry p " +
+            "WHERE p.customerId = :customerId " +
+            "AND p.transactionType = com.mark43.loyalty.domain.entity.TransactionType.EARN " +
+            "AND p.remainingPoints > 0 " +
+            "AND p.expiryDate > :now " +
+            "ORDER BY p.expiryDate ASC")
+    List<PointLedgerEntry> findAvailableEarnEntries(@Param("customerId") Long customerId, @Param("now") LocalDateTime now);
 
 }

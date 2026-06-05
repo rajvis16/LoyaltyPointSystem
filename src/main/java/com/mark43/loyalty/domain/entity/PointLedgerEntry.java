@@ -40,7 +40,20 @@ public class PointLedgerEntry {
     // Handy when we have to do the clawback
     private BigDecimal tierPointUsed;
 
+    // Tracks how much of this specific bucket has points left to spend
+    @Column(nullable = false)
+    private BigDecimal remainingPoints = BigDecimal.ZERO;
+
+    private LocalDateTime createdAtDate;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_entry_id")
     private PointLedgerEntry parentEntry;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAtDate == null) {
+            this.createdAtDate = LocalDateTime.now();
+        }
+    }
 }

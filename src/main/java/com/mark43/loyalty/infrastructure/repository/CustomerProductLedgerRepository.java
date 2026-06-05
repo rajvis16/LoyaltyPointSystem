@@ -20,9 +20,9 @@ public interface CustomerProductLedgerRepository extends JpaRepository<CustomerP
     List<CustomerProductLedgerEntry> findByCustomerIdAndPurchaseId(Long customerId, String purchaseId);
 
     /**
-     * Calculates the true net rolling financial spend over a specified lookback window.
-     * Because BOUGHT rows are stored positive and RETURNED rows are natively stored negative,
-     * a clean scalar SUM aggregates the mathematical reality automatically with index efficiency.
+     * Calculates the net rolling financial spend over a specified window.
+     * Because BOUGHT rows are stored positive and RETURNED rows are stored negative,
+     * the query aggregates the net spending.
      */
     @Query("SELECT COALESCE(SUM(c.totalSpendingPerProduct), 0.00) " +
             "FROM CustomerProductLedgerEntry c " +
