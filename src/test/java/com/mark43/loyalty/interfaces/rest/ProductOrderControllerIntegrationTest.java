@@ -1,6 +1,7 @@
 package com.mark43.loyalty.interfaces.rest;
 
 import com.mark43.loyalty.domain.entity.*;
+import com.mark43.loyalty.domain.service.impl.LoyaltyCacheManager;
 import com.mark43.loyalty.infrastructure.repository.*;
 import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.OrderRequestDTO;
@@ -55,11 +56,17 @@ class ProductOrderControllerIntegrationTest {
     @Autowired
     private RewardRepository rewardRepository;
 
+    @Autowired
+    private LoyaltyCacheManager cacheManager;
+
     private Product laptop;
     private Product mouse;
 
     @BeforeEach
     void setup() {
+
+        cacheManager.clearAll();
+
         pointLedgerRepository.deleteAll();
         customerProductLedgerRepository.deleteAll();
         customerRepository.deleteAll();

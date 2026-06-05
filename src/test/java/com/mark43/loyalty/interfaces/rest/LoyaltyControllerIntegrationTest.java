@@ -1,5 +1,6 @@
 package com.mark43.loyalty.interfaces.rest;
 
+import com.mark43.loyalty.domain.service.impl.LoyaltyCacheManager;
 import tools.jackson.databind.ObjectMapper;
 import com.mark43.loyalty.domain.entity.Customer;
 import com.mark43.loyalty.domain.entity.PointLedgerEntry;
@@ -48,6 +49,9 @@ class LoyaltyControllerIntegrationTest {
     @Autowired
     private RewardRepository rewardRepository;
 
+    @Autowired
+    private LoyaltyCacheManager cacheManager;
+
     private Customer testCustomer;
     private Reward testReward;
 
@@ -58,6 +62,8 @@ class LoyaltyControllerIntegrationTest {
 
     @BeforeEach
     void setupIntegrationTestData() {
+
+        cacheManager.clearAll();
 
         pointLedgerEntryRepository.deleteAll();
         rewardRepository.deleteAll();

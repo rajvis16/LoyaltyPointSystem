@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +27,8 @@ public class CustomerDTO {
     private String phoneNo;
 
     private Tier currentTier;
+
+    private BigDecimal pointsBalance;
 
     @NotNull(message = "Address details are required.")
     @Valid

@@ -29,17 +29,20 @@ public class LoyaltyServiceImpl implements LoyaltyService {
     private final PointLedgerEntryRepository pointLedgerEntryRepository;
     private final ProductRepository productRepository;
     private final RewardRepository rewardRepository;
+    private final LoyaltyCacheManager cacheManager;
 
     public LoyaltyServiceImpl(CustomerRepository customerRepository,
                               CustomerProductLedgerRepository customerProductLedgerRepository,
                               PointLedgerEntryRepository pointLedgerEntryRepository,
                               ProductRepository productRepository,
-                              RewardRepository rewardRepository) {
+                              RewardRepository rewardRepository,
+                              LoyaltyCacheManager cacheManager) {
         this.customerRepository = customerRepository;
         this.customerProductLedgerRepository = customerProductLedgerRepository;
         this.pointLedgerEntryRepository = pointLedgerEntryRepository;
         this.productRepository = productRepository;
         this.rewardRepository = rewardRepository;
+        this.cacheManager = cacheManager;
     }
 
     @Override
@@ -113,6 +116,8 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
         // update customer tier, if applicable
         updateCustomerTier(customer, netRollingSpend);
+
+        cacheManager.invalidate(customer.getEmail());
 
         log.info("Successfully allocated {} points to customer ID: {}.",
                 pointsToAward, customer.getCustomerId());
@@ -191,6 +196,8 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
         pointLedgerEntryRepository.save(redemptionEntry);
 
+        cacheManager.invalidate(customer.getEmail());
+
         log.info("Successfully redeemed reward '{}' for customer ID: {}. Deducted {} points using FIFO expiry logic.",
                 reward.getName(), customer.getCustomerId(), pointsNeeded);
     }
@@ -260,18 +267,28 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
         updateCustomerTier(customer, netRollingSpend);
 
+        cacheManager.invalidate(customer.getEmail());
+
         log.info("Successfully clawed back {} points from customer ID: {} for purchase: {}.",
                 pointsToClawback, customer.getCustomerId(), purchaseReference);
     }
 
-    @Transactional(readOnly = true)
-    @Override
     public CustomerBalanceDTO getCustomerBalanceByEmail(String email) {
 
+        CustomerBalanceDTO cached = cacheManager.get(email);
+
+        if (cached != null) {
+            log.debug("Cache HIT for customer email: {}", email);
+            return cached;
+        }
+
+        log.debug("Cache MISS for customer email: {}. Computing fresh state.", email);
         Customer customer = customerRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: " + email));
 
-        return calculateActiveBalance(customer);
+        CustomerBalanceDTO freshBalance = calculateActiveBalance(customer);
+        cacheManager.put(email, freshBalance);
+        return freshBalance;
     }
 
     @Transactional(readOnly = true)
@@ -281,7 +298,7 @@ public class LoyaltyServiceImpl implements LoyaltyService {
         Customer customer = customerRepository.findByPhoneNo(phoneNo)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with phone number: " + phoneNo));
 
-        return calculateActiveBalance(customer);
+        return getCustomerBalanceByEmail(customer.getEmail());
     }
 
     private CustomerBalanceDTO calculateActiveBalance(Customer customer) {

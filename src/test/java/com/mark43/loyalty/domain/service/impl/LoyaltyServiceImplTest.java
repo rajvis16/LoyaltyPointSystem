@@ -6,6 +6,7 @@ import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -44,14 +45,32 @@ class LoyaltyServiceImplTest {
     @Mock
     private RewardRepository rewardRepository;
 
+    @Mock
+    private LoyaltyCacheManager cacheManager;
+
     @InjectMocks
     private LoyaltyServiceImpl loyaltyService;
+
+    @BeforeEach
+    void setUp() {
+        loyaltyService = new LoyaltyServiceImpl(
+                customerRepository,
+                customerProductLedgerRepository,
+                pointLedgerEntryRepository,
+                productRepository,
+                rewardRepository,
+                cacheManager
+        );
+
+//         💡 FIX: Configure a lenient stub for read queries that hit the cache wrapper
+//        lenient().when(cacheManager.get(anyString())).thenReturn(Optional.empty());
+    }
 
     @Test
     void verifyIfCustomerCanBeRegisteredSuccessfully() {
 
         CustomerDTO dto = new CustomerDTO("Raj", "Singh",
-                "raj@example.com", "555-1234", SILVER, null);
+                "raj@example.com", "555-1234", SILVER, new BigDecimal(0), null);
 
         loyaltyService.registerCustomer(dto);
 
@@ -72,7 +91,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenEmailAlreadyExist() {
 
-        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, null);
+        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), null);
         when(customerRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(new Customer()));
 
         assertThrows(IllegalArgumentException.class, () -> loyaltyService.registerCustomer(dto));
@@ -82,7 +101,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenPhoneNoAlreadyExist() {
 
-        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, null);
+        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), null);
 
         when(customerRepository.findByPhoneNo(dto.getPhoneNo())).thenReturn(Optional.of(new Customer()));
 
