@@ -28,7 +28,6 @@ public class LoyaltyController {
 
         log.info("REST request received to redeem reward for customer: {}", requestPayload.getCustomerEmail());
 
-        // Invoke core loyalty service layer utilizing the matching state payload
         loyaltyService.redeemReward(requestPayload);
 
         return ResponseEntity.ok().build();
