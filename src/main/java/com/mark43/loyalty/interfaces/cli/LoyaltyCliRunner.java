@@ -52,11 +52,15 @@ public class LoyaltyCliRunner implements CommandLineRunner {
         boolean running = true;
 
         while (running) {
+
             System.out.print("loyalty-shell> ");
+
             if (!scanner.hasNextLine()) {
                 break;
             }
+
             String input = scanner.nextLine().trim();
+
             if (input.isEmpty()) continue;
 
             try {
@@ -97,6 +101,12 @@ public class LoyaltyCliRunner implements CommandLineRunner {
                     case "customer-list":
                         handleCustomerList();
                         break;
+                    case "product-create":
+                        handleProductCreate(tokens);
+                        break;
+                    case "reward-create":
+                        handleRewardCreate(tokens);
+                        break;
                     case "help":
                         printMenuSummary();
                         break;
@@ -117,25 +127,38 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void printMenuSummary() {
-        System.out.println("\n========================================================");
-        System.out.println("              AVAILABLE TERMINAL COMMAND RUNNERS       ");
-        System.out.println("========================================================");
-        System.out.println("  1. register      --first=[Name] --last=[Name] --email=[Email] --phone=[Phone]");
-        System.out.println("  2. balance       --email=[Email]");
-        System.out.println("  3. product-list");
-        System.out.println("  4. reward-list   (Show available rewards & point costs)");
-        System.out.println("  5. buy           --email=[Email] --ref=[Ref] --items=\"[Product1:Qty1,Product2:Qty2]\"");
-        System.out.println("  6. redeem        --email=[Email] --reward=\"[RewardName]\"");
-        System.out.println("  7. return        --email=[Email] --ref=[EarningRef] --items=\"[Product1:Qty1,Product2:Qty2]\"");
-        System.out.println("  8. customer-list");
-        System.out.println("  9. exit");
-        System.out.println("========================================================\n");
+
+        System.out.println("=======================================================================================");
+        System.out.println("                             AVAILABLE TERMINAL COMMAND RUNNERS                       ");
+        System.out.println("=======================================================================================");
+        System.out.println("  💡 NOTE: For values with spaces, wrap them in double quotes!");
+        System.out.println();
+        System.out.println("  📦 MULTI-ITEM OPERATIONS: You can buy or return multiple different ");
+        System.out.println("     products at once by separating them with commas and quantities.");
+        System.out.println("     Format example: --items=\"Product Name:Quantity,Product Two:Quantity\"");
+        System.out.println();
+        System.out.println("  --- RETAIL OPERATOR ACTIONS ---");
+        System.out.println("  1. balance       --email=raj@example.com");
+        System.out.println("  2. product-list  (Show all products & their prices)");
+        System.out.println("  3. reward-list   (Show available rewards & point costs)");
+        System.out.println("  4. buy           --email=raj@example.com --ref=TXN-101 --items=\"Wireless Earbuds:2,Stainless Travel Mug:1\"");
+        System.out.println("  5. redeem        --email=raj@example.com --reward=\"Luxury Scented Candle\"");
+        System.out.println("  6. return        --email=raj@example.com --ref=TXN-101 --items=\"Wireless Earbuds:1,Stainless Travel Mug:4\"");
+        System.out.println();
+        System.out.println("  --- ADMINISTRATIVE UTILITIES (NOT MEANT FOR REGULAR CUSTOMERS) ---");
+        System.out.println("  7. register      --first=\"Raj Kumar\" --last=Singh --email=raj@example.com --phone=555-0100");
+        System.out.println("  8. product-create --name=\"Mechanical Keyboard\" --price=95.00");
+        System.out.println("  9. reward-create --name=\"Cozy Knit Blanket\" --points=600");
+        System.out.println("  10. customer-list   (Show all registered customers)");
+        System.out.println();
+        System.out.println("  11. exit");
+        System.out.println("=======================================================================================");
     }
 
     private void handleRegistration(String[] tokens) {
+
         Map<String, String> args = parseArgs(tokens);
 
-        // 🎯 Beautifully Clean: No more dummy hardcoded physical address data!
         CustomerDTO dto = new CustomerDTO(
                 args.getOrDefault("first", "John"),
                 args.getOrDefault("last", "Doe"),
@@ -144,17 +167,20 @@ public class LoyaltyCliRunner implements CommandLineRunner {
                 Tier.SILVER,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                null // 👈 Safely pass null as the address parameter context
+                null
         );
 
         customerService.createCustomer(dto);
+
         System.out.println("SUCCESS: Customer registered under email: " + dto.getEmail());
     }
 
     private void handleBalance(String[] tokens) {
+
         Map<String, String> args = parseArgs(tokens);
+
         String email = getRequiredArg(args, "email");
-        CustomerDTO balance = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balance = loyaltyService.getCustomerByEmail(email);
 
         System.out.println("\n--- Live Ledger Balance Sheet ---");
         System.out.println("Customer:      " + balance.getFirstName() + " " + balance.getLastName());
@@ -164,7 +190,7 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleProductList() {
-        // 💡 Fetching straight from the application service contract layer
+
         List<ProductDTO> catalog = productService.getAllProducts();
 
         System.out.println("\n--- Available Product Catalog ---");
@@ -181,7 +207,7 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleRewards() {
-        // 💡 Pulling data straight from your core application service layer
+
         List<RewardDTO> rewards = rewardService.getAllRewards();
 
         System.out.println("\n--- Available Loyalty Rewards Catalog ---");
@@ -198,7 +224,9 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleBuy(String[] tokens) {
+
         Map<String, String> args = parseArgs(tokens);
+
         String email = getRequiredArg(args, "email");
         String ref = getRequiredArg(args, "ref");
         String itemsRaw = getRequiredArg(args, "items").replace("\"", "");
@@ -231,7 +259,9 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleRedeem(String[] tokens) {
+
         Map<String, String> args = parseArgs(tokens);
+
         String email = getRequiredArg(args, "email");
         String rewardName = getRequiredArg(args, "reward").replace("-", " ");
 
@@ -241,7 +271,9 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleReturn(String[] tokens) {
+
         Map<String, String> args = parseArgs(tokens);
+
         String email = getRequiredArg(args, "email");
         String ref = getRequiredArg(args, "ref");
         String itemsRaw = getRequiredArg(args, "items").replace("\"", "");
@@ -273,7 +305,9 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     }
 
     private void handleCustomerList() {
+
         List<CustomerDTO> customers = customerService.getAllCustomers();
+
         System.out.println("\n--- Active Customer Registry Summary ---");
         for (CustomerDTO c : customers) {
             System.out.printf("Email: %-30s | Tier: %-8s | Balance: %s pts%n",
@@ -282,15 +316,57 @@ public class LoyaltyCliRunner implements CommandLineRunner {
         System.out.println();
     }
 
+    private void handleProductCreate(String[] tokens) {
+
+        Map<String, String> args = parseArgs(tokens);
+
+        String name = getRequiredArg(args, "name");
+        String priceStr = getRequiredArg(args, "price");
+
+        BigDecimal price = new BigDecimal(priceStr);
+
+        ProductDTO productDTO = new ProductDTO();
+        productDTO.setName(name);
+        productDTO.setPrice(price);
+
+        productService.createProduct(productDTO);
+
+        System.out.println("SUCCESS: Product '" + name + "' added to catalog at $" + price + "!");
+    }
+
+    private void handleRewardCreate(String[] tokens) {
+
+        Map<String, String> args = parseArgs(tokens);
+        String name = getRequiredArg(args, "name");
+        String pointsStr = getRequiredArg(args, "points");
+
+        BigDecimal pointsRequired = new BigDecimal(pointsStr);
+
+        RewardDTO rewardDTO = new RewardDTO();
+        rewardDTO.setName(name);
+        rewardDTO.setPointsRequired(pointsRequired);
+
+        rewardService.createReward(rewardDTO);
+
+        System.out.println("SUCCESS: Reward '" + name + "' added to tier catalog at " + pointsRequired + " pts!");
+    }
+
     private Map<String, String> parseArgs(String[] tokens) {
-        Map<String, String> map = new HashMap<>();
+        Map<String, String> argsMap = new HashMap<>();
+
         for (String token : tokens) {
+            // Only process arguments that look like options (--key=value)
             if (token.startsWith("--") && token.contains("=")) {
+                // Split by the FIRST equals sign only (limit = 2)
                 String[] parts = token.substring(2).split("=", 2);
-                map.put(parts[0].toLowerCase(), parts[1]);
+                if (parts.length == 2) {
+                    String key = parts[0].trim();
+                    String value = parts[1].trim();
+                    argsMap.put(key, value);
+                }
             }
         }
-        return map;
+        return argsMap;
     }
 
     private String getRequiredArg(Map<String, String> args, String key) {

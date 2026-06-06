@@ -132,7 +132,7 @@ public class CustomerServiceImpl implements CustomerService {
      */
     private CustomerDTO mapToDTO(Customer customer) {
 
-        CustomerDTO balanceInfo = loyaltyService.getCustomerBalanceByEmail(customer.getEmail());
+        CustomerDTO balanceInfo = loyaltyService.getCustomerByEmail(customer.getEmail());
 
         AddressDTO addressDTO = null;
         if (customer.getAddress() != null) {

@@ -48,7 +48,7 @@ public class CustomerController {
 
         log.info("REST request to get customer ledger balance profile by email anchor: {}", email);
 
-        CustomerDTO balanceDTO = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balanceDTO = loyaltyService.getCustomerByEmail(email);
         return ResponseEntity.ok(balanceDTO);
     }
 

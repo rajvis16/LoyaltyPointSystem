@@ -58,7 +58,7 @@ class CustomerServiceImplTest {
         savedEntity.setPhoneNo("555-0199");
         savedEntity.setCurrentTier(SILVER);
 
-        lenient().when(loyaltyService.getCustomerBalanceByEmail(anyString()))
+        lenient().when(loyaltyService.getCustomerByEmail(anyString()))
                 .thenReturn(new CustomerDTO(
                         "Alice",
                         "Smith",

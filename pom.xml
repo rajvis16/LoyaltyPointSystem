@@ -18,7 +18,7 @@
 
     <groupId>com.mark43</groupId>
     <artifactId>loyalty-point-system</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>loyalty-point-system</name>
     <description>Retail Loyalty Points System</description>
 
@@ -38,12 +38,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.shell</groupId>-->
-<!--            <artifactId>spring-shell-starter</artifactId>-->
-<!--            <version>${spring-shell.version}</version>-->
-<!--        </dependency>-->
 
         <dependency>
             <groupId>com.h2database</groupId>

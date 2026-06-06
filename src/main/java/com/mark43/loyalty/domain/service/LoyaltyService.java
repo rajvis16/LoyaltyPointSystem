@@ -34,10 +34,10 @@ public interface LoyaltyService {
     /**
      * Aggregates dynamic point balances and evaluates rolling 12-month tier standing.
      */
-    CustomerDTO getCustomerBalanceByEmail(String email);
+    CustomerDTO getCustomerByEmail(String email);
 
     /**
      * Aggregates dynamic point balances and evaluates rolling 12-month tier standing.
      */
-    CustomerDTO getCustomerBalanceByPhone(String phoneNo);
+    CustomerDTO getCustomerByPhone(String phoneNo);
 }

@@ -20,3 +20,30 @@ spring:
 server:
   servlet:
     register-default-servlet: true
+
+# ===================================================================
+# PROFILE SEPARATION BOUNDARY (CLI OVERRIDES)
+# ===================================================================
+---
+spring:
+  config:
+    activate:
+      on-profile: "cli"
+
+  # Turn off the giant Spring Boot ASCII logo on startup
+  main:
+    banner-mode: "off"
+    # Kept web-application-type active so Tomcat and H2 Console stay alive!
+
+# Set framework logging thresholds to WARN to stop the INFO dump
+logging:
+  level:
+    root: WARN
+    org.springframework: WARN
+    org.hibernate: WARN
+    # Keep your core business logic and shell confirmation logs visible!
+    com.mark43.loyalty: INFO
+
+    # SILENCE THE INITIALIZATION CHATTER SURGICALLY
+    com.mark43.loyalty.LoyaltyApplicationMain: WARN
+    com.mark43.loyalty.infrastructure.bootstrap.DataLoader: WARN

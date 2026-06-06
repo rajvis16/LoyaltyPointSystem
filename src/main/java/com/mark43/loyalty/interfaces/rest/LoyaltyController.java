@@ -35,28 +35,28 @@ public class LoyaltyController {
 
     /**
      * REST Endpoint to fetch a customer's current available point pool balance and tier standing by Email.
-     * Leverages the unified CustomerBalanceDTO summary response object.
+     * Leverages the unified CustomerDTO summary response object.
      */
     @GetMapping("/balance/email")
     public ResponseEntity<CustomerDTO> getAvailableBalanceByEmail(@RequestParam String email) {
 
         log.info("REST request received to check available balance summary for email: {}", email);
 
-        CustomerDTO balanceSummary = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balanceSummary = loyaltyService.getCustomerByEmail(email);
 
         return ResponseEntity.ok(balanceSummary);
     }
 
     /**
      * REST Endpoint to fetch a customer's current available point pool balance and tier standing by Phone Number.
-     * Leverages the unified CustomerBalanceDTO summary response object.
+     * Leverages the unified CustomerDTO summary response object.
      */
     @GetMapping("/balance/phone")
     public ResponseEntity<CustomerDTO> getAvailableBalanceByPhone(@RequestParam String phoneNo) {
 
         log.info("REST request received to check available balance summary for phone: {}", phoneNo);
 
-        CustomerDTO balanceSummary = loyaltyService.getCustomerBalanceByPhone(phoneNo);
+        CustomerDTO balanceSummary = loyaltyService.getCustomerByPhone(phoneNo);
 
         return ResponseEntity.ok(balanceSummary);
     }

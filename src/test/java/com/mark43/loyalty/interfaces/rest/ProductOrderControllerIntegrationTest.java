@@ -551,7 +551,7 @@ class ProductOrderControllerIntegrationTest {
         assertEquals(new BigDecimal("900.00"), netAvailablePoints);
 
         // =========================================================================
-        // STEP 3: API CONTRACT CHECK -> Audit updated CustomerBalanceDTO fields
+        // STEP 3: API CONTRACT CHECK -> Audit updated CustomerDTO fields
         // =========================================================================
         String jsonResponse = mockMvc.perform(get("/api/v1/loyalty/balance/email")
                         .param("email", customerEmail)

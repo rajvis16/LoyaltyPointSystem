@@ -283,7 +283,7 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 pointsToClawback, customer.getCustomerId(), purchaseReference);
     }
 
-    public CustomerDTO getCustomerBalanceByEmail(String email) {
+    public CustomerDTO getCustomerByEmail(String email) {
 
         CustomerDTO cached = cacheManager.get(email);
 
@@ -303,12 +303,12 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
     @Transactional(readOnly = true)
     @Override
-    public CustomerDTO getCustomerBalanceByPhone(String phoneNo) {
+    public CustomerDTO getCustomerByPhone(String phoneNo) {
 
         Customer customer = customerRepository.findByPhoneNo(phoneNo)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with phone number: " + phoneNo));
 
-        return getCustomerBalanceByEmail(customer.getEmail());
+        return getCustomerByEmail(customer.getEmail());
     }
 
     private CustomerDTO calculateActiveBalance(Customer customer) {

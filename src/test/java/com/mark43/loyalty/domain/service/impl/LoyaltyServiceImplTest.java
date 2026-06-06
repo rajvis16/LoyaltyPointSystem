@@ -312,7 +312,7 @@ class LoyaltyServiceImplTest {
         when(pointLedgerEntryRepository.calculateActivePointsBalance(eq(1L), any(LocalDateTime.class)))
                 .thenReturn(new BigDecimal("500.00"));
 
-        CustomerDTO result = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO result = loyaltyService.getCustomerByEmail(email);
 
         assertNotNull(result);
         assertEquals("Raj", result.getFirstName());
