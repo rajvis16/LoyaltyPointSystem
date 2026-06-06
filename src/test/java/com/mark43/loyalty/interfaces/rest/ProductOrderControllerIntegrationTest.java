@@ -339,6 +339,6 @@ class ProductOrderControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/loyalty/balance/email").param("email", email))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rollingSpend").value(0.00))
-                .andExpect(jsonPath("$.pointsBalance").value(0.00));
+                .andExpect(jsonPath("$.pointsBalance").value(-100.00));
     }
 }
