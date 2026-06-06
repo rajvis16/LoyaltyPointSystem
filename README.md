@@ -54,8 +54,6 @@ The platform models three distinct client tiers calculated over a trailing 365-d
 
 ---
 
-
-
 ## 🚀 Getting Started & Local Execution
 
 ### Prerequisites
@@ -64,7 +62,7 @@ The platform models three distinct client tiers calculated over a trailing 365-d
 
 ### 1. Clone & Navigate to the Project
 ```bash
-git clone [https://github.com/rajvis16/LoyaltyPointSystem](https://github.com/rajvis16/LoyaltyPointSystem)
+git clone https://github.com/rajvis16/LoyaltyPointSystem.git
 cd LoyaltyPointSystem
 ```
 ### 2. Build It
@@ -79,6 +77,34 @@ java -jar target/loyalty-point-system-1.0.0.jar --spring.profiles.active=cli
 ```bash
 java -jar target/loyalty-point-system-1.0.0.jar
 ```
+
+---
+
+## 🗺️ Project Blueprint & Key Components
+
+If you are digging into the codebase to audit the core mechanics, here is where the critical business logic and ledger structures reside:
+
+### 🛠️ Java Core Layer (`src/main/java/...`)
+* **`LoyaltyServiceImpl.java`**
+    * *Location:* `com.mark43.loyalty.domain.service.impl`
+    * *Role:* The central engine handling tier state-machine evaluations, raw point allocations, FIFO bucket-peeling for redemptions, and historical multiplier calculations for clawbacks.
+* **`ProductOrderServiceImpl.java`**
+    * *Location:* `com.mark43.loyalty.domain.service.impl`
+    * *Role:* Manages checkout and return flows, seamlessly coordinating inventory movements with the loyalty engine to ensure atomicity across transactions.
+
+### 🗄️ Relational Database Schemas (H2 In-Memory)
+* **`POINT_LEDGER_ENTRIES`**
+    * *Role:* The immutable, append-only ledger that records every point transaction vector (`EARN`, `REDEEM`, `CLAWBACK`). This is the absolute single source of truth used to derive customer point balances dynamically.
+* **`CUSTOMER_PRODUCT_LEDGER`**
+    * *Role:* Tracks the historical purchase records and quantities per customer, serving as the foundational audit trail used to calculate the 12-month rolling spend limits.
+
+---
+
+## ⚡ Architectural Notes for Reviewers
+
+* **Transactional Integrity:** All multi-component routines across `ProductOrderServiceImpl` and `LoyaltyServiceImpl` run under strict `@Transactional` boundaries. Any unexpected exception during checkout or return automatically aborts the entire unit of work, preventing out-of-sync states between product records and point ledger entries.
+* **Cache Management:** To support high-throughput balance checks, customer profiles utilize a high-performance cache wrapper (`LoyaltyCacheManager`). To prevent stale data anomalies, the cache enforces strict write-through invalidation rules, clearing a customer's cache instantly upon any point mutation activity.
+
 ---
 
 ## 🛠️ Verification & Stress-Testing Script
