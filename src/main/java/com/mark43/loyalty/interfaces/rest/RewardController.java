@@ -22,11 +22,12 @@ public class RewardController {
     /**
      * POST /api/v1/rewards
      * Registers a new reward option into the system catalog.
-     * Returns 201 Created to pass your integration test expectations.
      */
     @PostMapping
     public ResponseEntity<RewardDTO> createReward(@Valid @RequestBody RewardDTO rewardDTO) {
+
         log.info("REST request to create loyalty reward option: {}", rewardDTO.getName());
+
         RewardDTO createdReward = rewardService.createReward(rewardDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdReward);
     }
@@ -37,29 +38,41 @@ public class RewardController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<RewardDTO> getRewardById(@PathVariable Long id) {
+
         log.info("REST request to get reward configuration options for ID: {}", id);
+
         RewardDTO reward = rewardService.getRewardById(id);
         return ResponseEntity.ok(reward);
     }
 
     /**
      * GET /api/v1/rewards
-     * Fetches the entire available loyalty rewards catalog catalog matrix.
+     * Fetches a paginated slice of the loyalty rewards catalog matrix.
      */
     @GetMapping
-    public ResponseEntity<List<RewardDTO>> getAllRewards() {
-        log.info("REST request to fetch entire system rewards matrix catalog");
+    public ResponseEntity<List<RewardDTO>> getAllRewards(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+
+        log.info("REST request to fetch system rewards catalog page: {}, size: {}", page, size);
+
         List<RewardDTO> rewards = rewardService.getAllRewards();
         return ResponseEntity.ok(rewards);
     }
 
     /**
      * PUT /api/v1/rewards/{id}
-     * Modifies properties of an existing catalog entry.
+     * Modifies properties of an existing catalog entry securely.
      */
     @PutMapping("/{id}")
     public ResponseEntity<RewardDTO> updateReward(@PathVariable Long id, @Valid @RequestBody RewardDTO rewardDTO) {
+
         log.info("REST request to update catalog properties for reward item ID: {}", id);
+
+        if (rewardDTO.getRewardId() != null && !id.equals(rewardDTO.getRewardId())) {
+            throw new IllegalArgumentException("Mismatched Identity: The path ID parameter does not match the reward ID in the payload body.");
+        }
+
         RewardDTO updatedReward = rewardService.updateReward(id, rewardDTO);
         return ResponseEntity.ok(updatedReward);
     }
@@ -70,8 +83,11 @@ public class RewardController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReward(@PathVariable Long id) {
+
         log.info("REST request to withdraw reward item configuration option ID: {}", id);
+
         rewardService.deleteReward(id);
+
         return ResponseEntity.noContent().build();
     }
 }

@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class RewardDTO {
 
+    private Long rewardId;
     private String name;
     private String description;
     private BigDecimal pointsRequired;

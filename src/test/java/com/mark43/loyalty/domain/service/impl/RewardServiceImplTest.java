@@ -32,7 +32,7 @@ class RewardServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        rewardDto = new RewardDTO("$10 Gift Card", "Ten dollar store voucher", new BigDecimal("100.00"));
+        rewardDto = new RewardDTO(1L, "$10 Gift Card", "Ten dollar store voucher", new BigDecimal("100.00"));
         rewardEntity = new Reward(5L, "$10 Gift Card", "Ten dollar store voucher", new BigDecimal("100.00"));
     }
 
@@ -86,7 +86,7 @@ class RewardServiceImplTest {
     @Test
     void verifyIfUpdateRewardSucceedsWhenModifyingProperties() {
 
-        RewardDTO updateDetails = new RewardDTO("$15 Gift Card", "Fifteen dollar store voucher", new BigDecimal("150.00"));
+        RewardDTO updateDetails = new RewardDTO(2L, "$15 Gift Card", "Fifteen dollar store voucher", new BigDecimal("150.00"));
         when(rewardRepository.findById(5L)).thenReturn(Optional.of(rewardEntity));
         when(rewardRepository.save(any(Reward.class))).thenReturn(rewardEntity);
 
