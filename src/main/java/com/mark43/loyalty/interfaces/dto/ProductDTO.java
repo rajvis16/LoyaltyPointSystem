@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ProductDTO {
 
+    private Long productId;
     private String name;
     private String description;
     private BigDecimal price;

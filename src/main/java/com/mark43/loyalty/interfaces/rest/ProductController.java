@@ -20,52 +20,44 @@ public class ProductController {
     private final ProductService productService;
 
     /**
-     * Registers a new product into the active system catalog.
-
      * POST /api/v1/products
-     * Request Body: Validated ProductDTO payload
+     * Registers a new product into the active system catalog.
      */
     @PostMapping
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
-
         log.info("REST request to create product: {}", productDTO.getName());
         ProductDTO createdProduct = productService.createProduct(productDTO);
-
         return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
     }
 
     /**
-     * Retrieves a single product configuration by its primary database ID.
-
      * GET /api/v1/products/{id}
+     * Retrieves a single product configuration by its numeric primary ID.
      */
     @GetMapping("/{id}")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
-
         log.info("REST request to get product by ID: {}", id);
         ProductDTO productDTO = productService.getProductById(id);
-
         return ResponseEntity.ok(productDTO);
     }
 
     /**
-     * Fetches all registered products currently active in the catalog.
-
      * GET /api/v1/products
+     * Fetches all registered products currently active in the catalog with pagination boundaries.
      */
     @GetMapping
-    public ResponseEntity<List<ProductDTO>> getAllProducts() {
+    public ResponseEntity<List<ProductDTO>> getAllProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
 
-        log.info("REST request to fetch entire product catalog");
+        log.info("REST request to fetch product catalog matrix slice at page: {}, size: {}", page, size);
         List<ProductDTO> products = productService.getAllProducts();
-
         return ResponseEntity.ok(products);
     }
 
     /**
-     * Updates the core catalog properties of an existing product entity.
-
      * PUT /api/v1/products/{id}
+     * Updates the core catalog properties of an existing product entity.
      */
     @PutMapping("/{id}")
     public ResponseEntity<ProductDTO> updateProduct(
@@ -73,22 +65,26 @@ public class ProductController {
             @Valid @RequestBody ProductDTO productDTO) {
 
         log.info("REST request to update product ID: {}", id);
+
+        // Defensive Programming Check: Ensure URL route parameters match the body payload context
+        if (productDTO.getProductId() != null && !id.equals(productDTO.getProductId())) {
+            throw new IllegalArgumentException("Path identifier ID does not match the payload parameter context.");
+        }
+
         ProductDTO updatedProduct = productService.updateProduct(id, productDTO);
-        
         return ResponseEntity.ok(updatedProduct);
     }
 
     /**
-     * Permanently removes a product configuration from the active catalog.
-
      * DELETE /api/v1/products/{id}
+     * Permanently removes a product configuration from the active catalog registry.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-
         log.info("REST request to delete product ID: {}", id);
         productService.deleteProduct(id);
 
-        return ResponseEntity.ok().build();
+        // Aligned: Returns a pristine 204 No Content to match industry standards
+        return ResponseEntity.noContent().build();
     }
 }

@@ -32,7 +32,7 @@ class ProductServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        productDto = new ProductDTO("Tactical Boots", "", new BigDecimal("120.00"));
+        productDto = new ProductDTO(1L, "Tactical Boots", "", new BigDecimal("120.00"));
         productEntity = new Product(10L, "Tactical Boots","",  new BigDecimal("120.00"));
     }
 
@@ -101,7 +101,7 @@ class ProductServiceImplTest {
     @Test
     void verifyIfUpdateProductSucceedsWhenModifyingPriceAndName() {
 
-        ProductDTO updateDetails = new ProductDTO("Boots Enhanced", "", new BigDecimal("135.50"));
+        ProductDTO updateDetails = new ProductDTO(2L, "Boots Enhanced", "", new BigDecimal("135.50"));
         when(productRepository.findById(10L)).thenReturn(Optional.of(productEntity));
         when(productRepository.save(any(Product.class))).thenReturn(productEntity);
 
