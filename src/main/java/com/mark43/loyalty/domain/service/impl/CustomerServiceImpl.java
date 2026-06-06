@@ -6,7 +6,6 @@ import com.mark43.loyalty.domain.service.CustomerService;
 import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
 import com.mark43.loyalty.interfaces.dto.AddressDTO;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -132,12 +131,12 @@ public class CustomerServiceImpl implements CustomerService {
      * dynamic point balance and current tier from your cache-backed loyalty engine.
      */
     private CustomerDTO mapToDTO(Customer customer) {
-        // Route through loyaltyService to get the cache-aside point balance and current tier
-        CustomerBalanceDTO balanceInfo = loyaltyService.getCustomerBalanceByEmail(customer.getEmail());
+
+        CustomerDTO balanceInfo = loyaltyService.getCustomerBalanceByEmail(customer.getEmail());
 
         AddressDTO addressDTO = null;
         if (customer.getAddress() != null) {
-            addressDTO = new com.mark43.loyalty.interfaces.dto.AddressDTO(
+            addressDTO = new AddressDTO(
                     customer.getAddress().getStreetNo(),
                     customer.getAddress().getStreet(),
                     customer.getAddress().getCity(),
@@ -152,8 +151,9 @@ public class CustomerServiceImpl implements CustomerService {
                 customer.getLastName(),
                 customer.getEmail(),
                 customer.getPhoneNo(),
-                balanceInfo.getCurrentTier(),    // 💡 Satisfies tier visibility
-                balanceInfo.getPointsBalance(),  // 💡 Dynamically injects point balance into CustomerDTO!
+                balanceInfo.getCurrentTier(),
+                balanceInfo.getPointsBalance(),
+                balanceInfo.getRollingSpend(),
                 addressDTO
         );
     }

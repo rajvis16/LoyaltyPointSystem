@@ -1,6 +1,6 @@
 package com.mark43.loyalty.domain.service.impl;
 
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
+import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -10,13 +10,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoyaltyCacheManager {
 
     // Cache customer against their email Id
-    private final Map<String, CustomerBalanceDTO> balanceCache = new ConcurrentHashMap<>();
+    private final Map<String, CustomerDTO> balanceCache = new ConcurrentHashMap<>();
 
-    public CustomerBalanceDTO get(String email) {
+    public CustomerDTO get(String email) {
         return balanceCache.get(email);
     }
 
-    public void put(String email, CustomerBalanceDTO dto) {
+    public void put(String email, CustomerDTO dto) {
         if (email != null && dto != null) {
             balanceCache.put(email, dto);
         }

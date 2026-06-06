@@ -134,8 +134,8 @@ public class LoyaltyCliRunner implements CommandLineRunner {
 
     private void handleRegistration(String[] tokens) {
         Map<String, String> args = parseArgs(tokens);
-        AddressDTO address = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
 
+        // 🎯 Beautifully Clean: No more dummy hardcoded physical address data!
         CustomerDTO dto = new CustomerDTO(
                 args.getOrDefault("first", "John"),
                 args.getOrDefault("last", "Doe"),
@@ -143,7 +143,8 @@ public class LoyaltyCliRunner implements CommandLineRunner {
                 args.getOrDefault("phone", "555-0000"),
                 Tier.SILVER,
                 BigDecimal.ZERO,
-                address
+                BigDecimal.ZERO,
+                null // 👈 Safely pass null as the address parameter context
         );
 
         customerService.createCustomer(dto);
@@ -153,7 +154,7 @@ public class LoyaltyCliRunner implements CommandLineRunner {
     private void handleBalance(String[] tokens) {
         Map<String, String> args = parseArgs(tokens);
         String email = getRequiredArg(args, "email");
-        CustomerBalanceDTO balance = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balance = loyaltyService.getCustomerBalanceByEmail(email);
 
         System.out.println("\n--- Live Ledger Balance Sheet ---");
         System.out.println("Customer:      " + balance.getFirstName() + " " + balance.getLastName());

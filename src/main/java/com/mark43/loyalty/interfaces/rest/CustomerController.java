@@ -2,7 +2,6 @@ package com.mark43.loyalty.interfaces.rest;
 
 import com.mark43.loyalty.domain.service.CustomerService;
 import com.mark43.loyalty.domain.service.LoyaltyService;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,31 +40,27 @@ public class CustomerController {
      * Resolves a single customer's points ledger statement and active tier.
      */
     @GetMapping("/{email}/balance")
-    public ResponseEntity<CustomerBalanceDTO> getCustomerBalance(@PathVariable String email) {
+    public ResponseEntity<CustomerDTO> getCustomerBalance(@PathVariable String email) {
 
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email path variable cannot be null or blank.");
         }
+
         log.info("REST request to get customer ledger balance profile by email anchor: {}", email);
 
-        CustomerBalanceDTO balanceDTO = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balanceDTO = loyaltyService.getCustomerBalanceByEmail(email);
         return ResponseEntity.ok(balanceDTO);
     }
 
     /**
      * GET /api/v1/customers
-     * Fetches a slice of registered system customer accounts.
-     * Note: Included a size block hint to demonstrate awareness of enterprise memory constraints.
+     * Fetches all registered customer profiles from the master registry ledger.
      */
     @GetMapping
-    public ResponseEntity<List<CustomerDTO>> getAllCustomers(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
+    public ResponseEntity<List<CustomerDTO>> getAllCustomers() {
 
-        log.info("REST request to fetch customer registry collection for page: {}, size: {}", page, size);
+        log.info("REST request to fetch all customers");
 
-        // If your service interface doesn't accept page/size parameters yet, you can leave the invocation
-        // as customerService.getAllCustomers() but explicitly keeping the params tells the reviewer you know your stuff!
         List<CustomerDTO> customers = customerService.getAllCustomers();
         return ResponseEntity.ok(customers);
     }
@@ -99,9 +94,11 @@ public class CustomerController {
      */
     @DeleteMapping("/{email}")
     public ResponseEntity<Void> deleteCustomer(@PathVariable String email) {
+
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email path variable cannot be null or blank.");
         }
+
         log.info("REST request to withdraw customer account registration via path email lookup: {}", email);
 
         customerService.deleteCustomer(email);

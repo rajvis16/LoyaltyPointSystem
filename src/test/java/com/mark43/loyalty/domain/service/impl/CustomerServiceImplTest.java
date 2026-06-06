@@ -3,7 +3,6 @@ package com.mark43.loyalty.domain.service.impl;
 import com.mark43.loyalty.domain.entity.Customer;
 import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.infrastructure.repository.CustomerRepository;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,23 +58,22 @@ class CustomerServiceImplTest {
         savedEntity.setPhoneNo("555-0199");
         savedEntity.setCurrentTier(SILVER);
 
-        // 💡 FIX: Realigned to use your exact 7-argument @AllArgsConstructor signature
         lenient().when(loyaltyService.getCustomerBalanceByEmail(anyString()))
-                .thenReturn(new CustomerBalanceDTO(
+                .thenReturn(new CustomerDTO(
                         "Alice",
                         "Smith",
                         "alice@example.com",
                         "555-0199",
                         SILVER,
                         BigDecimal.ZERO,
-                        BigDecimal.ZERO
+                        BigDecimal.ZERO,
+                        null
                 ));
     }
 
     @Test
     void verifyIfCreateCustomerSucceedsAndConvertsToSecureDtoWithoutId() {
-        // 💡 FIX: In your production code, createCustomer calls loyaltyService.registerCustomer first,
-        // and then fetches the user by email from customerRepository. It does NOT call customerRepository.save().
+
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(savedEntity));
 
         CustomerDTO result = customerService.createCustomer(inputDto);
@@ -92,8 +90,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfCreateCustomerThrowsExceptionWhenEmailAlreadyExists() {
-        // 💡 FIX: Unique email validation happens inside your loyaltyService.registerCustomer flow.
-        // If it throws an exception, createCustomer bubbles it up.
+
         doThrow(new IllegalArgumentException("Customer already exists with email: alice@example.com"))
                 .when(loyaltyService).registerCustomer(any(CustomerDTO.class));
 
@@ -107,6 +104,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfGetCustomerByEmailThrowsExceptionWhenEmailIsNotFound() {
+
         when(customerRepository.findByEmail("test@test.com")).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
@@ -118,6 +116,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfGetCustomerByEmailSucceedsAndConvertsToSecureDto() {
+
         when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(savedEntity));
 
         CustomerDTO result = customerService.getCustomerByEmail("alice@example.com");
@@ -128,6 +127,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfGetCustomerByPhoneNoSucceedsAndConvertsToSecureDto() {
+
         when(customerRepository.findByPhoneNo("555-0199")).thenReturn(Optional.of(savedEntity));
 
         CustomerDTO result = customerService.getCustomerByPhoneNo("555-0199");
@@ -138,6 +138,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfGetAllCustomersReturnsFullyMappedSecureDtoCollection() {
+
         Customer bob = new Customer(2L, "Bob", "Jones", "bob@example.com", "555-0200", SILVER, null);
         when(customerRepository.findAll()).thenReturn(Arrays.asList(savedEntity, bob));
 
@@ -150,8 +151,7 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfUpdateCustomerThrowsExceptionWhenPhoneConflictOccurs() {
-        // 1. Arrange: Bob sends an update request using his valid email anchor,
-        // but inputs a phone number already locked down by Alice.
+
         CustomerDTO updatePayload = new CustomerDTO();
         updatePayload.setFirstName("Bob");
         updatePayload.setLastName("Jones");

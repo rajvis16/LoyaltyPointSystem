@@ -3,7 +3,6 @@ package com.mark43.loyalty.domain.service.impl;
 import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.domain.service.LoyaltyService;
 import com.mark43.loyalty.infrastructure.repository.*;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
@@ -284,9 +283,9 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 pointsToClawback, customer.getCustomerId(), purchaseReference);
     }
 
-    public CustomerBalanceDTO getCustomerBalanceByEmail(String email) {
+    public CustomerDTO getCustomerBalanceByEmail(String email) {
 
-        CustomerBalanceDTO cached = cacheManager.get(email);
+        CustomerDTO cached = cacheManager.get(email);
 
         if (cached != null) {
             log.debug("Cache HIT for customer email: {}", email);
@@ -297,14 +296,14 @@ public class LoyaltyServiceImpl implements LoyaltyService {
         Customer customer = customerRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: " + email));
 
-        CustomerBalanceDTO freshBalance = calculateActiveBalance(customer);
+        CustomerDTO freshBalance = calculateActiveBalance(customer);
         cacheManager.put(email, freshBalance);
         return freshBalance;
     }
 
     @Transactional(readOnly = true)
     @Override
-    public CustomerBalanceDTO getCustomerBalanceByPhone(String phoneNo) {
+    public CustomerDTO getCustomerBalanceByPhone(String phoneNo) {
 
         Customer customer = customerRepository.findByPhoneNo(phoneNo)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found with phone number: " + phoneNo));
@@ -312,7 +311,7 @@ public class LoyaltyServiceImpl implements LoyaltyService {
         return getCustomerBalanceByEmail(customer.getEmail());
     }
 
-    private CustomerBalanceDTO calculateActiveBalance(Customer customer) {
+    private CustomerDTO calculateActiveBalance(Customer customer) {
 
         BigDecimal totalAvailablePoints = pointLedgerEntryRepository.calculateActivePointsBalance(
                 customer.getCustomerId(),
@@ -331,7 +330,7 @@ public class LoyaltyServiceImpl implements LoyaltyService {
             netRollingSpend = BigDecimal.ZERO;
         }
 
-        CustomerBalanceDTO balanceDTO = new CustomerBalanceDTO();
+        CustomerDTO balanceDTO = new CustomerDTO();
 
         balanceDTO.setFirstName(customer.getFirstName());
         balanceDTO.setLastName(customer.getLastName());

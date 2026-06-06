@@ -1,9 +1,7 @@
 package com.mark43.loyalty.interfaces.dto;
 
 import com.mark43.loyalty.domain.entity.Tier;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -30,7 +28,7 @@ public class CustomerDTO {
 
     private BigDecimal pointsBalance;
 
-    @NotNull(message = "Address details are required.")
-    @Valid
+    private BigDecimal rollingSpend;
+
     private AddressDTO address;
 }

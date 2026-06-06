@@ -1,7 +1,7 @@
 package com.mark43.loyalty.interfaces.rest;
 
 import com.mark43.loyalty.domain.service.LoyaltyService;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
+import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,11 +38,11 @@ public class LoyaltyController {
      * Leverages the unified CustomerBalanceDTO summary response object.
      */
     @GetMapping("/balance/email")
-    public ResponseEntity<CustomerBalanceDTO> getAvailableBalanceByEmail(@RequestParam String email) {
+    public ResponseEntity<CustomerDTO> getAvailableBalanceByEmail(@RequestParam String email) {
 
         log.info("REST request received to check available balance summary for email: {}", email);
 
-        CustomerBalanceDTO balanceSummary = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO balanceSummary = loyaltyService.getCustomerBalanceByEmail(email);
 
         return ResponseEntity.ok(balanceSummary);
     }
@@ -52,11 +52,11 @@ public class LoyaltyController {
      * Leverages the unified CustomerBalanceDTO summary response object.
      */
     @GetMapping("/balance/phone")
-    public ResponseEntity<CustomerBalanceDTO> getAvailableBalanceByPhone(@RequestParam String phoneNo) {
+    public ResponseEntity<CustomerDTO> getAvailableBalanceByPhone(@RequestParam String phoneNo) {
 
         log.info("REST request received to check available balance summary for phone: {}", phoneNo);
 
-        CustomerBalanceDTO balanceSummary = loyaltyService.getCustomerBalanceByPhone(phoneNo);
+        CustomerDTO balanceSummary = loyaltyService.getCustomerBalanceByPhone(phoneNo);
 
         return ResponseEntity.ok(balanceSummary);
     }

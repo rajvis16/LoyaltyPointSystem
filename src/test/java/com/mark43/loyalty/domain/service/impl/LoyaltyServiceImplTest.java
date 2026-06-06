@@ -2,7 +2,6 @@ package com.mark43.loyalty.domain.service.impl;
 
 import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.infrastructure.repository.*;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
@@ -70,7 +69,7 @@ class LoyaltyServiceImplTest {
     void verifyIfCustomerCanBeRegisteredSuccessfully() {
 
         CustomerDTO dto = new CustomerDTO("Raj", "Singh",
-                "raj@example.com", "555-1234", SILVER, new BigDecimal(0), null);
+                "raj@example.com", "555-1234", SILVER, new BigDecimal(0), new BigDecimal(0), null);
 
         loyaltyService.registerCustomer(dto);
 
@@ -91,7 +90,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenEmailAlreadyExist() {
 
-        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), null);
+        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), new BigDecimal(0), null);
         when(customerRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(new Customer()));
 
         assertThrows(IllegalArgumentException.class, () -> loyaltyService.registerCustomer(dto));
@@ -101,7 +100,7 @@ class LoyaltyServiceImplTest {
     @Test
     void verifyIfAnExceptionIsThrownWhenPhoneNoAlreadyExist() {
 
-        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), null);
+        CustomerDTO dto = new CustomerDTO("Raj", "Singh", "duplicate@example.com", "555-1234", SILVER, new BigDecimal(0), new BigDecimal(0), null);
 
         when(customerRepository.findByPhoneNo(dto.getPhoneNo())).thenReturn(Optional.of(new Customer()));
 
@@ -317,7 +316,7 @@ class LoyaltyServiceImplTest {
         when(pointLedgerEntryRepository.calculateActivePointsBalance(eq(1L), any(LocalDateTime.class)))
                 .thenReturn(new BigDecimal("500.00"));
 
-        CustomerBalanceDTO result = loyaltyService.getCustomerBalanceByEmail(email);
+        CustomerDTO result = loyaltyService.getCustomerBalanceByEmail(email);
 
         assertNotNull(result);
         assertEquals("Raj", result.getFirstName());

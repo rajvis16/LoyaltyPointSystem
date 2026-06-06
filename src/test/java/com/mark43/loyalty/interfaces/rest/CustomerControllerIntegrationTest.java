@@ -49,7 +49,7 @@ class CustomerControllerIntegrationTest {
 
         AddressDTO address = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
         CustomerDTO registrationPayload = new CustomerDTO(
-                "Raj", "Singh", "raj.singh@example.com", "555-4343", SILVER, BigDecimal.ZERO, address
+                "Raj", "Singh", "raj.singh@example.com", "555-4343", SILVER, BigDecimal.ZERO, BigDecimal.ZERO, address
         );
 
         mockMvc.perform(post("/api/v1/customers")
@@ -90,7 +90,7 @@ class CustomerControllerIntegrationTest {
         AddressDTO mockAddress = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
 
         CustomerDTO updatePayload = new CustomerDTO(
-                "Raj", "Singh", missingEmail, "555-9999", SILVER, BigDecimal.ZERO, mockAddress
+                "Raj", "Singh", missingEmail, "555-9999", SILVER, BigDecimal.ZERO, BigDecimal.ZERO, mockAddress
         );
 
         mockMvc.perform(put("/api/v1/customers/{email}", missingEmail)
@@ -108,7 +108,7 @@ class CustomerControllerIntegrationTest {
         for (int i = 1; i <= 5; i++) {
             CustomerDTO payload = new CustomerDTO(
                     "User" + i, "Test", "bulk.user" + i + "@example.com", "555-000" + i,
-                    SILVER, BigDecimal.ZERO, address
+                    SILVER, BigDecimal.ZERO, BigDecimal.ZERO, address
             );
 
             mockMvc.perform(post("/api/v1/customers")
@@ -129,7 +129,7 @@ class CustomerControllerIntegrationTest {
         AddressDTO address = new AddressDTO(100, "High St", "Boston", "MA", "02110", "USA");
         CustomerDTO targetPayload = new CustomerDTO(
                 "EmailCheck", "Singh", "target.lookup@example.com", "555-8888",
-                SILVER, BigDecimal.ZERO, address
+                SILVER, BigDecimal.ZERO, BigDecimal.ZERO, address
         );
 
         mockMvc.perform(post("/api/v1/customers")
@@ -155,7 +155,7 @@ class CustomerControllerIntegrationTest {
 
         // Build the payload matching Alice's existing profile identity anchor
         CustomerDTO updatePayload = new CustomerDTO(
-                "Alice", "Smith", existingEmail, "555-0101", SILVER, BigDecimal.ZERO, targetAddress
+                "Alice", "Smith", existingEmail, "555-0101", SILVER, BigDecimal.ZERO, BigDecimal.ZERO, targetAddress
         );
 
         // This will now find Alice cleanly, update her address fields, and pass!

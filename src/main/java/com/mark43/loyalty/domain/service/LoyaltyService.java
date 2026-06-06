@@ -1,6 +1,5 @@
 package com.mark43.loyalty.domain.service;
 
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.EarnPointsDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
@@ -35,10 +34,10 @@ public interface LoyaltyService {
     /**
      * Aggregates dynamic point balances and evaluates rolling 12-month tier standing.
      */
-    CustomerBalanceDTO getCustomerBalanceByEmail(String email);
+    CustomerDTO getCustomerBalanceByEmail(String email);
 
     /**
      * Aggregates dynamic point balances and evaluates rolling 12-month tier standing.
      */
-    CustomerBalanceDTO getCustomerBalanceByPhone(String phoneNo);
+    CustomerDTO getCustomerBalanceByPhone(String phoneNo);
 }

@@ -3,7 +3,7 @@ package com.mark43.loyalty.interfaces.rest;
 import com.mark43.loyalty.domain.entity.*;
 import com.mark43.loyalty.domain.service.impl.LoyaltyCacheManager;
 import com.mark43.loyalty.infrastructure.repository.*;
-import com.mark43.loyalty.interfaces.dto.CustomerBalanceDTO;
+import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.OrderRequestDTO;
 import com.mark43.loyalty.interfaces.dto.RedeemRewardDTO;
 import tools.jackson.databind.ObjectMapper;
@@ -561,7 +561,7 @@ class ProductOrderControllerIntegrationTest {
                 .getResponse()
                 .getContentAsString();
 
-        CustomerBalanceDTO balanceDto = objectMapper.readValue(jsonResponse, CustomerBalanceDTO.class);
+        CustomerDTO balanceDto = objectMapper.readValue(jsonResponse, CustomerDTO.class);
 
         assertNotNull(balanceDto);
         assertEquals("Raj", balanceDto.getFirstName());
