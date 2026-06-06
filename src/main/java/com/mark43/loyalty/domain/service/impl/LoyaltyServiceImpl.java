@@ -317,8 +317,9 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 customer.getCustomerId(),
                 LocalDateTime.now());
 
-        if (totalAvailablePoints == null) {
-            totalAvailablePoints = BigDecimal.ZERO;
+        // 🛡️ THE RETAIL ENGINE DEFENSE: Intercept negative sums and clamp tightly to a 0.00 floor
+        if (totalAvailablePoints == null || totalAvailablePoints.compareTo(BigDecimal.ZERO) < 0) {
+            totalAvailablePoints = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
 
         BigDecimal netRollingSpend = customerProductLedgerRepository.calculateNetRollingSpend(
