@@ -107,6 +107,35 @@ If you are digging into the codebase to audit the core mechanics, here is where 
 
 ---
 
+---
+
+## ⚖️ Strategic Trade-offs & Architecture Decisions
+
+### Dynamic Aggregation vs. State Duplication
+During architectural planning, a critical trade-off was evaluated regarding how to maintain a customer's available point balance:
+* **Option A:** Store a running mutable `pointBalance` column directly on the `CUSTOMER` table and increment/decrement it on every transaction.
+* **Option B (Chosen):** Treat point balances as a transient, calculated state derived dynamically via transactional repository summations (`SUM(points)`) across an append-only transaction ledger (`POINT_LEDGER_ENTRIES`).
+
+**The Trade-off:** Option A offers minor read-performance optimization at low scale. However, it introduces severe data corruption risks via race conditions under concurrent workloads and leaves zero historical audit trail for tracking point fraud or troubleshooting drift. Option B introduces a minor read-cost overhead (mitigated cleanly via targeted indexing and application-layer caching policies), but guarantees absolute mathematical precision, total immutability, and an uncorrupted audit history. For a financial ledger system, transactional integrity must always be prioritized over raw, unoptimized read speeds.
+
+---
+
+## 🗺️ Future Roadmap & Next Horizons (With More Time)
+
+Given additional engineering iterations, the following infrastructure enhancements would be prioritized:
+
+1. **Pagination:** Introduced pagination to view all the customers and products
+2. **Queue Mechanism:** After the customer buys or return products we immediately hit the database server to add or deduct points. At enterprise level, when the data size is huge, this might slow down the process. To make sure that the customer gets a good experience, they should immediately get an acknowledgment after they buy or return the products. Further processing of adding/deducting points can be handed over to the queue mechanism for smoother experience
+
+---
+
+## 🤖 AI Tooling & Collaboration Context
+
+* **Tools Utilized:** Gemini (Advanced Architectural Consultation)
+* **Application Context:** AI collaboration was leveraged as an interactive peer-review architecture partner. It was utilized to model edge-cases (such as running a multi-item basket through rapid tier escalations, immediate reward consumption, and subsequent historical clawbacks) to stress-test the state-machine logic and mathematically verify the ledger boundaries against unexpected point-drifts.
+
+---
+
 ## 🛠️ Verification & Stress-Testing Script
 
 To demonstrate the structural resilience of the engine across multi-item baskets, simultaneous promotions, and deep debt recovery, execute the following script inside the interactive CLI:
