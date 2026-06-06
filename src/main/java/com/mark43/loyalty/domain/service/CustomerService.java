@@ -14,11 +14,6 @@ public interface CustomerService {
     CustomerDTO createCustomer(CustomerDTO customerDTO);
 
     /**
-     * Retrieves a single customer profile by its primary key ID.
-     */
-    CustomerDTO getCustomerById(Long customerId);
-
-    /**
      * Retrieves a single customer profile by their unique email anchor.
      */
     CustomerDTO getCustomerByEmail(String email);
@@ -36,10 +31,10 @@ public interface CustomerService {
     /**
      * Updates an existing customer profile's matching attributes.
      */
-    CustomerDTO updateCustomer(Long customerId, CustomerDTO customerDTO);
+    CustomerDTO updateCustomer(CustomerDTO customerDTO);
 
     /**
      * Removes a customer profile completely from the persistence layer.
      */
-    void deleteCustomer(Long customerId);
+    void deleteCustomer(String email);
 }

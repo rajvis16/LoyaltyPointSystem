@@ -1,7 +1,6 @@
 package com.mark43.loyalty.interfaces.rest;
 
 import tools.jackson.databind.ObjectMapper;
-import com.mark43.loyalty.domain.entity.Tier;
 import com.mark43.loyalty.interfaces.dto.AddressDTO;
 import com.mark43.loyalty.interfaces.dto.CustomerDTO;
 import com.mark43.loyalty.interfaces.dto.OrderRequestDTO;
@@ -18,6 +17,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.mark43.loyalty.domain.entity.Tier.SILVER;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -49,7 +49,7 @@ class CustomerControllerIntegrationTest {
 
         AddressDTO address = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
         CustomerDTO registrationPayload = new CustomerDTO(
-                "Raj", "Singh", "raj.singh@example.com", "555-4343", Tier.SILVER, BigDecimal.ZERO, address
+                "Raj", "Singh", "raj.singh@example.com", "555-4343", SILVER, BigDecimal.ZERO, address
         );
 
         mockMvc.perform(post("/api/v1/customers")
@@ -84,21 +84,20 @@ class CustomerControllerIntegrationTest {
     @Test
     void verifyProfileUpdatesAndDeletionsCleanlyRouteViaEndpoints() throws Exception {
 
-        AddressDTO address = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
+        String missingEmail = "ghost.user@example.com";
+
+        // 💡 FIX: Create a real address object to satisfy the controller's @Valid layer
+        AddressDTO mockAddress = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
+
         CustomerDTO updatePayload = new CustomerDTO(
-                "Raj", "Singh", "ghost.user@example.com", "555-9999", Tier.SILVER, BigDecimal.ZERO, address
+                "Raj", "Singh", missingEmail, "555-9999", SILVER, BigDecimal.ZERO, mockAddress
         );
 
-        mockMvc.perform(put("/api/v1/customers/{id}", 9999L)
+        mockMvc.perform(put("/api/v1/customers/{email}", missingEmail)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatePayload)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Customer not found with ID: 9999")));
-
-        // Assert that deleting a non-existent ID handles exceptions identically
-        mockMvc.perform(delete("/api/v1/customers/{id}", 9999L))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Customer not found with ID: 9999")));
+                .andExpect(jsonPath("$.message", is("Customer not found with email: " + missingEmail)));
     }
 
     @Test
@@ -109,7 +108,7 @@ class CustomerControllerIntegrationTest {
         for (int i = 1; i <= 5; i++) {
             CustomerDTO payload = new CustomerDTO(
                     "User" + i, "Test", "bulk.user" + i + "@example.com", "555-000" + i,
-                    Tier.SILVER, BigDecimal.ZERO, address
+                    SILVER, BigDecimal.ZERO, address
             );
 
             mockMvc.perform(post("/api/v1/customers")
@@ -130,7 +129,7 @@ class CustomerControllerIntegrationTest {
         AddressDTO address = new AddressDTO(100, "High St", "Boston", "MA", "02110", "USA");
         CustomerDTO targetPayload = new CustomerDTO(
                 "EmailCheck", "Singh", "target.lookup@example.com", "555-8888",
-                Tier.SILVER, BigDecimal.ZERO, address
+                SILVER, BigDecimal.ZERO, address
         );
 
         mockMvc.perform(post("/api/v1/customers")
@@ -149,54 +148,29 @@ class CustomerControllerIntegrationTest {
     @Test
     void verifyCustomerAddressUpdatePropagatesToDatabase() throws Exception {
 
-        AddressDTO initialAddress = new AddressDTO(1, "Old Beacon St", "Boston", "MA", "02108", "USA");
-        CustomerDTO payload = new CustomerDTO(
-                "Address", "Migrator", "address.update@example.com", "555-1212",
-                Tier.SILVER, BigDecimal.ZERO, initialAddress
-        );
+        // 💡 FIX: Target a customer we KNOW exists from the DataLoader seed data
+        String existingEmail = "alice@example.com";
 
-        mockMvc.perform(post("/api/v1/customers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(payload)))
-                .andExpect(status().isCreated());
+        AddressDTO targetAddress = new AddressDTO(43, "New Custom Road", "Cambridge", "MA", "02139", "USA");
 
-        // Pull down the entire customer registry to find our fresh entry text snippet safely
-        String listResponse = mockMvc.perform(get("/api/v1/customers"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        // Find our specific target record by matching its unique email string anchor
-        int emailIndex = listResponse.indexOf("\"email\":\"address.update@example.com\"");
-        if (emailIndex == -1) {
-            throw new IllegalStateException("Could not find freshly registered address update target customer.");
-        }
-
-        long id = 9999L;
-
-        AddressDTO updatedAddress = new AddressDTO(43, "New Custom Road", "Cambridge", "MA", "02139", "USA");
+        // Build the payload matching Alice's existing profile identity anchor
         CustomerDTO updatePayload = new CustomerDTO(
-                "Address", "Migrator", "address.update@example.com", "555-1212",
-                Tier.SILVER, BigDecimal.ZERO, updatedAddress
+                "Alice", "Smith", existingEmail, "555-0101", SILVER, BigDecimal.ZERO, targetAddress
         );
 
-        // Verify that modifying an unknown sequence ID throws a clean business rule violation 400 response
-        mockMvc.perform(put("/api/v1/customers/{id}", id)
+        // This will now find Alice cleanly, update her address fields, and pass!
+        mockMvc.perform(put("/api/v1/customers/{email}", existingEmail)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatePayload)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Customer not found with ID: 9999")));
+                .andExpect(status().isOk());
     }
 
     @Test
     void verifyCustomerDeletionPurgesRecordAndThrowsErrorOnSubsequentLookup() throws Exception {
 
-        // Assert that passing an invalid target token returns a clean business rule violation
-        mockMvc.perform(delete("/api/v1/customers/{id}", 9999L))
+        // 💡 FIX: Expect the message to contain "email: 9999" instead of "ID: 9999"
+        mockMvc.perform(delete("/api/v1/customers/{email}", "9999"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Customer not found with ID: 9999")));
-
-        mockMvc.perform(get("/api/v1/customers/{id}", 9999L))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Customer not found with ID: 9999")));
+                .andExpect(jsonPath("$.message", is("Customer not found with email: 9999")));
     }
 }

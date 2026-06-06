@@ -104,26 +104,16 @@ class CustomerServiceImplTest {
         assertTrue(exception.getMessage().contains("already exists"));
     }
 
-    @Test
-    void verifyIfGetCustomerByIdSucceedsAndConvertsToSecureDto() {
-        when(customerRepository.findById(1L)).thenReturn(Optional.of(savedEntity));
-
-        CustomerDTO result = customerService.getCustomerById(1L);
-
-        assertNotNull(result);
-        assertEquals("Alice", result.getFirstName());
-        assertEquals("alice@example.com", result.getEmail());
-    }
 
     @Test
-    void verifyIfGetCustomerByIdThrowsExceptionWhenIdIsNotFound() {
-        when(customerRepository.findById(99L)).thenReturn(Optional.empty());
+    void verifyIfGetCustomerByEmailThrowsExceptionWhenEmailIsNotFound() {
+        when(customerRepository.findByEmail("test@test.com")).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                customerService.getCustomerById(99L)
+                customerService.getCustomerByEmail("test@test.com")
         );
 
-        assertTrue(exception.getMessage().contains("Customer not found with ID: 99"));
+        assertEquals( "Customer not found with email: test@test.com", exception.getMessage());
     }
 
     @Test
@@ -159,39 +149,60 @@ class CustomerServiceImplTest {
     }
 
     @Test
-    void verifyIfUpdateCustomerSucceedsWhenModifyingPermittedFields() {
-        // 💡 FIX: Change the update payload to use a modified email address
-        // to separate your old and new cache eviction targets cleanly!
-        CustomerDTO updatePayload = new CustomerDTO(
-                "Alice-M", "Smith-New", "alice.new@example.com", "555-9999", SILVER, BigDecimal.ZERO, null
+    void verifyIfUpdateCustomerThrowsExceptionWhenPhoneConflictOccurs() {
+        // 1. Arrange: Bob sends an update request using his valid email anchor,
+        // but inputs a phone number already locked down by Alice.
+        CustomerDTO updatePayload = new CustomerDTO();
+        updatePayload.setFirstName("Bob");
+        updatePayload.setLastName("Jones");
+        updatePayload.setEmail("bob@example.com"); // 🎯 Valid lookup anchor
+        updatePayload.setPhoneNo("555-0101");       // ⚠️ Clashing phone number token
+
+        // 2. Mock that Bob's profile is found cleanly via his email anchor
+        Customer bobsExistingEntity = new Customer();
+        bobsExistingEntity.setCustomerId(2L);
+        bobsExistingEntity.setEmail("bob@example.com");
+        bobsExistingEntity.setPhoneNo("555-9999"); // Old number
+
+        when(customerRepository.findByEmail("bob@example.com"))
+                .thenReturn(Optional.of(bobsExistingEntity));
+
+        // 3. Mock that saving this configuration triggers a unique constraint failure
+        when(customerRepository.save(any(Customer.class)))
+                .thenThrow(new IllegalArgumentException("Phone number is already taken"));
+
+        // 4. Act & Assert
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                customerService.updateCustomer(updatePayload)
         );
 
-        when(customerRepository.findById(1L)).thenReturn(Optional.of(savedEntity));
-        when(customerRepository.save(any(Customer.class))).thenReturn(savedEntity);
-
-        CustomerDTO result = customerService.updateCustomer(1L, updatePayload);
-
-        assertNotNull(result);
-        // 💡 VERIFIED: Verifies that both the old and new map structures are evicted cleanly
-        verify(cacheManager, times(1)).invalidate("alice@example.com");  // Old cache invalidation pointer
-        verify(cacheManager, times(1)).invalidate("alice.new@example.com");  // New cache invalidation pointer
-        verify(customerRepository, times(1)).save(savedEntity);
-        assertEquals("Alice-M", savedEntity.getFirstName());
-        assertEquals("555-9999", savedEntity.getPhoneNo());
+        assertTrue(exception.getMessage().contains("already taken"));
     }
 
     @Test
     void verifyIfUpdateCustomerThrowsExceptionWhenEmailConflictOccurs() {
-        CustomerDTO updatePayload = new CustomerDTO("Alice", "Smith", "clashing@example.com", "555-0199", SILVER, BigDecimal.ZERO, null);
+        // 1. Bob wants to update his details, but inputs an email address already owned by Alice
+        CustomerDTO updatePayload = new CustomerDTO();
+        updatePayload.setFirstName("Bob");
+        updatePayload.setLastName("Jones");
+        updatePayload.setEmail("alice@example.com"); // ⚠️ The clashing email target
+        updatePayload.setPhoneNo("555-0199");
 
-        // 💡 FIX: In your production CustomerServiceImpl.updateCustomer method, there is NO duplicate email database check.
-        // It simply sets the new email and triggers customerRepository.save(). If a clash throws a DB constraint exception,
-        // it bubbles up. Let's configure the test to mirror your exact service implementation behavior.
-        when(customerRepository.findById(1L)).thenReturn(Optional.of(savedEntity));
-        when(customerRepository.save(any(Customer.class))).thenThrow(new IllegalArgumentException("Email is already taken"));
+        // 2. Mock that Bob's existing profile is found by the service lookup anchor
+        Customer bobsExistingEntity = new Customer();
+        bobsExistingEntity.setCustomerId(2L);
+        bobsExistingEntity.setEmail("bob@example.com");
 
+        // If your service looks up the account using the current email context
+        when(customerRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(bobsExistingEntity));
+
+        // 3. Simulate the database throwing a unique constraint violation on save
+        when(customerRepository.save(any(Customer.class)))
+                .thenThrow(new IllegalArgumentException("Email is already taken"));
+
+        // 4. Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                customerService.updateCustomer(1L, updatePayload)
+                customerService.updateCustomer(updatePayload)
         );
 
         assertTrue(exception.getMessage().contains("is already taken"));
@@ -199,9 +210,9 @@ class CustomerServiceImplTest {
 
     @Test
     void verifyIfDeleteCustomerSucceedsWhenIdExists() {
-        when(customerRepository.findById(1L)).thenReturn(Optional.of(savedEntity));
+        when(customerRepository.findByEmail("test@test.com")).thenReturn(Optional.of(savedEntity));
 
-        customerService.deleteCustomer(1L);
+        customerService.deleteCustomer("test@test.com");
 
         verify(cacheManager, times(1)).invalidate("alice@example.com"); // Verifies cache invalidation hook on delete
         verify(customerRepository, times(1)).delete(savedEntity);

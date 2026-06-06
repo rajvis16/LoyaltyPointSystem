@@ -43,18 +43,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Transactional(readOnly = true)
     @Override
-    public CustomerDTO getCustomerById(Long customerId) {
-
-        log.debug("Processing DTO lookup for customer ID: {}", customerId);
-
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new IllegalArgumentException("Customer not found with ID: " + customerId));
-
-        return mapToDTO(customer);
-    }
-
-    @Transactional(readOnly = true)
-    @Override
     public CustomerDTO getCustomerByEmail(String email) {
 
         log.debug("Processing DTO lookup for customer email: {}", email);
@@ -92,12 +80,12 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public CustomerDTO updateCustomer(Long customerId, CustomerDTO customerDTO) {
+    public CustomerDTO updateCustomer(CustomerDTO customerDTO) {
 
-        log.debug("Processing service update for customer ID: {}", customerId);
+        log.debug("Processing service update for customer email: {}", customerDTO.getEmail());
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new IllegalArgumentException("Customer not found with ID: " + customerId));
+        Customer customer = customerRepository.findByEmail(customerDTO.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: " + customerDTO.getEmail()));
 
         // 💡 CACHE PROTECTION: Evict stale records under the old email map pointer
         cacheManager.invalidate(customer.getEmail());
@@ -128,12 +116,12 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public void deleteCustomer(Long customerId) {
+    public void deleteCustomer(String email) {
 
-        log.debug("Processing service deletion for customer ID: {}", customerId);
+        log.debug("Processing service deletion for customer email: {}", email);
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new IllegalArgumentException("Customer not found with ID: " + customerId));
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found with email: " + email));
 
         cacheManager.invalidate(customer.getEmail());
         customerRepository.delete(customer);
