@@ -22,12 +22,6 @@ public interface PointLedgerEntryRepository extends JpaRepository<PointLedgerEnt
     List<PointLedgerEntry> findByCustomerIdOrderByPointLedgerEntryIdAsc(Long customerId);
 
     /**
-     * Checks if an EARN event has already been targeted by a CLAWBACK entry.
-     * Blocks duplicate refund/clawback attempts at the database gateway level.
-     */
-    boolean existsByParentEntry(PointLedgerEntry parentEntry);
-
-    /**
      * Idempotency Check: Ensures an order is never processed twice for points.
      */
     boolean existsByPurchaseId(String purchaseId);
@@ -38,12 +32,12 @@ public interface PointLedgerEntryRepository extends JpaRepository<PointLedgerEnt
     Optional<PointLedgerEntry> findByPurchaseIdAndTransactionType(String purchaseReference, TransactionType transactionType);
 
     /**
-     * Sum all of the remaining points for EARN that are unexpired
+     * Sums the value of all active, unexpired transaction points (EARN, REDEEM, CLAWBACK) to determine
+     * the accurate current real-time point balance standing.
      */
-    @Query("SELECT COALESCE(SUM(p.remainingPoints), 0.00) FROM PointLedgerEntry p " +
+    @Query("SELECT COALESCE(SUM(p.points), 0.00) FROM PointLedgerEntry p " +
             "WHERE p.customerId = :customerId " +
-            "AND p.transactionType = com.mark43.loyalty.domain.entity.TransactionType.EARN " +
-            "AND p.expiryDate > :now")
+            "AND (p.expiryDate IS NULL OR p.expiryDate > :now)")
     BigDecimal calculateActivePointsBalance(@Param("customerId") Long customerId, @Param("now") LocalDateTime now);
 
     /**
