@@ -107,7 +107,6 @@ class LoyaltyControllerIntegrationTest {
 
         RedeemRewardDTO redeemPayload = new RedeemRewardDTO("raj.singh@example.com", "Premium Gadget Voucher");
 
-        // 💡 FIXED ENDPOINT MAPPING
         mockMvc.perform(post("/api/v1/loyalty/redeem")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(redeemPayload)))
@@ -143,7 +142,6 @@ class LoyaltyControllerIntegrationTest {
 
         RedeemRewardDTO redeemPayload = new RedeemRewardDTO("raj.singh@example.com", "Exact Cost Reward");
 
-        // 💡 FIXED ENDPOINT MAPPING
         mockMvc.perform(post("/api/v1/loyalty/redeem")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(redeemPayload)))
@@ -176,7 +174,6 @@ class LoyaltyControllerIntegrationTest {
 
         RedeemRewardDTO redeemPayload = new RedeemRewardDTO("raj.singh@example.com", "Quick Item");
 
-        // 💡 FIXED ENDPOINT MAPPING
         mockMvc.perform(post("/api/v1/loyalty/redeem")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(redeemPayload)))
@@ -203,7 +200,6 @@ class LoyaltyControllerIntegrationTest {
 
         RedeemRewardDTO redeemPayload = new RedeemRewardDTO("raj.singh@example.com", "Bypass Reward");
 
-        // 💡 FIXED ENDPOINT MAPPING
         mockMvc.perform(post("/api/v1/loyalty/redeem")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(redeemPayload)))
@@ -228,7 +224,6 @@ class LoyaltyControllerIntegrationTest {
 
         RedeemRewardDTO redeemPayload = new RedeemRewardDTO("raj.singh@example.com", "Ultra Luxury Experience");
 
-        // 💡 FIXED ENDPOINT MAPPING
         mockMvc.perform(post("/api/v1/loyalty/redeem")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(redeemPayload)))

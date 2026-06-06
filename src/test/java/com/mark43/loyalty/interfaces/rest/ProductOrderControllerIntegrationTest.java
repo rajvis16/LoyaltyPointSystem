@@ -713,7 +713,6 @@ class ProductOrderControllerIntegrationTest {
         // STEP 4: AUDIT EXCEPTION RESPONSE & DATABASE ROLLBACK SANIY
         // =========================================================================
 
-        // 1. 💡 FIXED: Align assertion text checking with the exact production error message string
         assertTrue(errorJsonResponse.contains("Invalid return request") && errorJsonResponse.contains("net owns 2 unit(s)"),
                 "The error response text failed to accurately inform the client of the item mismatch validation block.");
 
@@ -924,7 +923,7 @@ class ProductOrderControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/orders/buy")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(purchasePayload)))
-                .andExpect(status().isCreated()); // 💡 FIX: Updated from isOk() to match your 201 endpoint response
+                .andExpect(status().isCreated());
 
         // ------------------------------------------------------------------------
         // STEP 3: Redeem high-value VIP Reward (-1,000.00 Points)

@@ -61,8 +61,6 @@ class LoyaltyServiceImplTest {
                 cacheManager
         );
 
-//         💡 FIX: Configure a lenient stub for read queries that hit the cache wrapper
-//        lenient().when(cacheManager.get(anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -203,11 +201,9 @@ class LoyaltyServiceImplTest {
         verify(pointLedgerEntryRepository, times(1)).save(bucket1);
         verify(pointLedgerEntryRepository, times(1)).save(bucket2);
 
-        // 💡 FIX: Capture all 3 total invocations that hit the repository save gateway
         ArgumentCaptor<PointLedgerEntry> entryCaptor = ArgumentCaptor.forClass(PointLedgerEntry.class);
         verify(pointLedgerEntryRepository, times(3)).save(entryCaptor.capture());
 
-        // 💡 FIX: Extract the 3rd invocation (index 2), which represents the final REDEEM record
         List<PointLedgerEntry> capturedEntries = entryCaptor.getAllValues();
         PointLedgerEntry savedRedeemRecord = capturedEntries.get(2);
 

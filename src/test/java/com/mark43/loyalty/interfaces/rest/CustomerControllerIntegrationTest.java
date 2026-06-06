@@ -86,7 +86,6 @@ class CustomerControllerIntegrationTest {
 
         String missingEmail = "ghost.user@example.com";
 
-        // 💡 FIX: Create a real address object to satisfy the controller's @Valid layer
         AddressDTO mockAddress = new AddressDTO(43, "Beacon St", "Boston", "MA", "02108", "USA");
 
         CustomerDTO updatePayload = new CustomerDTO(
@@ -148,7 +147,6 @@ class CustomerControllerIntegrationTest {
     @Test
     void verifyCustomerAddressUpdatePropagatesToDatabase() throws Exception {
 
-        // 💡 FIX: Target a customer we KNOW exists from the DataLoader seed data
         String existingEmail = "alice@example.com";
 
         AddressDTO targetAddress = new AddressDTO(43, "New Custom Road", "Cambridge", "MA", "02139", "USA");
@@ -168,7 +166,6 @@ class CustomerControllerIntegrationTest {
     @Test
     void verifyCustomerDeletionPurgesRecordAndThrowsErrorOnSubsequentLookup() throws Exception {
 
-        // 💡 FIX: Expect the message to contain "email: 9999" instead of "ID: 9999"
         mockMvc.perform(delete("/api/v1/customers/{email}", "9999"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", is("Customer not found with email: 9999")));

@@ -99,7 +99,6 @@ class ProductControllerIntegrationTest {
 
         Long existingProductId = 21L; // Swap to match whatever real ID or context setup you use here
 
-        // 💡 FIX: Make sure the payload body ID matches the path variable parameter
         ProductDTO updatePayload = new ProductDTO();
         updatePayload.setProductId(existingProductId);
         updatePayload.setName("Base-Laptop (Upgraded)");
@@ -118,7 +117,6 @@ class ProductControllerIntegrationTest {
 
         Long targetProductId = 20L; // Targeting seeded element record ID
 
-        // 💡 FIX: Update your expect target confirmation to look for a 204 No Content response code
         mockMvc.perform(delete("/api/v1/products/{id}", targetProductId))
                 .andExpect(status().isNoContent());
     }
@@ -149,7 +147,6 @@ class ProductControllerIntegrationTest {
 
         Long nonExistentId = 999999L;
 
-        // 💡 FIX: Set the productId to match the path target parameter value
         ProductDTO updatePayload = new ProductDTO();
         updatePayload.setProductId(nonExistentId);
         updatePayload.setName("Ghost Item");
