@@ -16,8 +16,5 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Optional<Product> findByName(String name);
 
-    @Query("SELECT COALESCE(SUM(p.price), 0.00) FROM Product p WHERE p.productId IN :productIds")
-    BigDecimal calculateTotalSumByIds(@Param("productIds") List<Long> productIds);
-
     List<Product> findByNameIn(Collection<String> names);
 }

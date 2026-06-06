@@ -229,7 +229,12 @@ public class LoyaltyServiceImpl implements LoyaltyService {
             throw new IllegalStateException("Original ledger entry is missing its historical tierPointUse multiplier.");
         }
 
-        BigDecimal totalRefundValue = productRepository.calculateTotalSumByIds(returnedProductIds);
+        BigDecimal totalRefundValue = returnedProductIds.stream()
+                .map(id -> productRepository.findById(id)
+                        .orElseThrow(() -> new IllegalArgumentException("Product catalog lookup missing for ID: " + id)))
+                .map(Product::getPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         BigDecimal pointsToClawback = totalRefundValue.multiply(historicalMultiplier).setScale(2, RoundingMode.HALF_UP);
         BigDecimal remainingInParent = originalEarnEntry.getRemainingPoints();
 

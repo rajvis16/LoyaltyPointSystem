@@ -28,6 +28,7 @@ import static com.mark43.loyalty.domain.entity.TransactionType.EARN;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -829,5 +830,146 @@ class ProductOrderControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(toxicPayload)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void verifyWhenHighVolumeItemsReturned_ThenPointClawbackDeductsFullQuantityPoints() throws Exception {
+
+        String testEmail = "exploit.test@example.com";
+        String purchaseRef = "abc-123";
+
+        // ------------------------------------------------------------------------
+        // STEP 0: Dynamically seed the product catalog inside the test context memory
+        // ------------------------------------------------------------------------
+        String jacketCatalogJson = """
+    {
+        "name": "Premium Leather Jacket",
+        "description": "High-grade leather fashion jacket",
+        "price": 250.00
+    }
+    """;
+
+        String coatCatalogJson = """
+    {
+        "name": "Designer Wool Coat",
+        "description": "Premium winter formal coat apparel",
+        "price": 180.00
+    }
+    """;
+
+        mockMvc.perform(post("/api/v1/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jacketCatalogJson))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(coatCatalogJson))
+                .andExpect(status().isCreated());
+
+        // ------------------------------------------------------------------------
+        // STEP 0.5: Dynamically seed the reward options catalog
+        // ------------------------------------------------------------------------
+        String rewardCatalogJson = """
+        {
+            "name": "$100 Mega Gift Card VIP",
+            "description": "VIP top tier level reward option redemption",
+            "pointsRequired": 1000.00
+        }
+        """;
+
+        mockMvc.perform(post("/api/v1/rewards") // Adjust to match your Reward Controller creation endpoint
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(rewardCatalogJson))
+                .andExpect(status().isCreated());
+
+        // ------------------------------------------------------------------------
+        // STEP 1: Register a fresh customer profile (Expects 201 Created)
+        // ------------------------------------------------------------------------
+        String customerJson = """
+    {
+        "firstName": "Bob",
+        "lastName": "Jones",
+        "email": "exploit.test@example.com",
+        "phoneNo": "555-9876",
+        "address": {
+            "streetNo": 43,
+            "street": "Beacon St",
+            "city": "Boston",
+            "state": "MA",
+            "zipCode": "02108",
+            "country": "USA"
+        }
+    }
+    """;
+
+        mockMvc.perform(post("/api/v1/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(customerJson))
+                .andExpect(status().isCreated());
+
+        // ------------------------------------------------------------------------
+        // STEP 2: Execute Multi-Item Purchase (10x Jackets @ $250, 10x Coats @ $180)
+        // Total Spend = $4,300.00 -> Earns 4,300.00 Points at SILVER baseline (1.0x)
+        // ------------------------------------------------------------------------
+        Map<String, Object> purchasePayload = new HashMap<>();
+        purchasePayload.put("customerEmail", testEmail);
+        purchasePayload.put("purchaseReference", purchaseRef);
+
+        Map<String, Integer> itemsBought = new HashMap<>();
+        itemsBought.put("Premium Leather Jacket", 10);
+        itemsBought.put("Designer Wool Coat", 10);
+        purchasePayload.put("productQuantities", itemsBought);
+
+        mockMvc.perform(post("/api/v1/orders/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(purchasePayload)))
+                .andExpect(status().isCreated()); // 💡 FIX: Updated from isOk() to match your 201 endpoint response
+
+        // ------------------------------------------------------------------------
+        // STEP 3: Redeem high-value VIP Reward (-1,000.00 Points)
+        // Remaining Balance should be: 4,300 - 1,000 = 3,300.00 Points
+        // ------------------------------------------------------------------------
+        String redemptionJson = """
+    {
+        "customerEmail": "exploit.test@example.com",
+        "rewardName": "$100 Mega Gift Card VIP"
+    }
+    """;
+
+        mockMvc.perform(post("/api/v1/loyalty/redeem")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(redemptionJson))
+                .andExpect(status().isOk());
+
+        // ------------------------------------------------------------------------
+        // STEP 4: Process full return of the 10 Premium Leather Jackets
+        // Expected Clawback: 10 units * $250.00 * 1.0 multiplier = -2,500.00 Points
+        // ------------------------------------------------------------------------
+        Map<String, Object> returnPayload = new HashMap<>();
+        returnPayload.put("customerEmail", testEmail);
+        returnPayload.put("purchaseReference", purchaseRef);
+
+        Map<String, Integer> itemsReturned = new HashMap<>();
+        itemsReturned.put("Premium Leather Jacket", 10);
+        returnPayload.put("productQuantities", itemsReturned);
+
+        mockMvc.perform(post("/api/v1/orders/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(returnPayload)))
+                .andExpect(status().isOk()); // Swap to isCreated() if your returns route returns a 201
+
+        // ------------------------------------------------------------------------
+        // STEP 5: Asset Ledger Balance Validation
+        // Formula: 4,300 (Earned) - 1,000 (Redeemed) - 2,500 (Clawed Back) = 800.00
+        // ------------------------------------------------------------------------
+        mockMvc.perform(get("/api/v1/loyalty/balance/email")
+                        .param("email", testEmail)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                // ❌ Currently will fail here: returns 3050.00 due to the unit clawback bug
+                // ✅ Will cleanly evaluate to 800.00 points once the backend math is fixed!
+                .andExpect(jsonPath("$.pointsBalance").value(800.00))
+                .andExpect(jsonPath("$.rollingSpend").value(1800.00));
     }
 }
