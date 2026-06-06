@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.mark43.loyalty.domain.entity.Tier.SILVER;
 import static com.mark43.loyalty.domain.entity.TransactionType.*;
@@ -229,11 +231,15 @@ public class LoyaltyServiceImpl implements LoyaltyService {
             throw new IllegalStateException("Original ledger entry is missing its historical tierPointUse multiplier.");
         }
 
-        BigDecimal totalRefundValue = returnedProductIds.stream()
-                .map(id -> productRepository.findById(id)
-                        .orElseThrow(() -> new IllegalArgumentException("Product catalog lookup missing for ID: " + id)))
-                .map(Product::getPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Fetch all required product data in EXACTLY ONE database query
+        List<Product> products = productRepository.findByProductIdIn(returnedProductIds);
+
+        // Transform the result list into map
+        Map<Long, BigDecimal> priceMap = products.stream()
+                .collect(Collectors.toMap(Product::getProductId, Product::getPrice));
+
+        // Map the original raw list (including duplicates) against the memory map
+        BigDecimal totalRefundValue = calculateTotalRefund(returnedProductIds, priceMap);
 
         BigDecimal pointsToClawback = totalRefundValue.multiply(historicalMultiplier).setScale(2, RoundingMode.HALF_UP);
         BigDecimal remainingInParent = originalEarnEntry.getRemainingPoints();
@@ -351,5 +357,24 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
             customerRepository.save(customer);
         }
+    }
+
+    private BigDecimal calculateTotalRefund(List<Long> returnedProductIds, Map<Long, BigDecimal> priceMap) {
+
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (Long id : returnedProductIds) {
+            BigDecimal price = priceMap.get(id);
+
+            // Fail-fast fraud protection safety check
+            if (price == null) {
+                throw new IllegalArgumentException("Product catalog lookup missing for ID: " + id);
+            }
+
+            // Sum up the price to our running total sum
+            total = total.add(price);
+        }
+
+        return total;
     }
 }

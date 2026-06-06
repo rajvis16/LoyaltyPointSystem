@@ -273,8 +273,8 @@ class LoyaltyServiceImplTest {
         product2.setProductId(102L);
         product2.setPrice(new BigDecimal("30.00")); // $40.00 + $30.00 = $70.00 cumulative refund total
 
-        when(productRepository.findById(101L)).thenReturn(Optional.of(product1));
-        when(productRepository.findById(102L)).thenReturn(Optional.of(product2));
+        List<Product> mockCatalogBatch = Arrays.asList(product1, product2);
+        when(productRepository.findByProductIdIn(returnedProductIds)).thenReturn(mockCatalogBatch);
 
         when(customerProductLedgerRepository.calculateNetRollingSpend(eq(43L), any(LocalDateTime.class)))
                 .thenReturn(new BigDecimal("600.00"));
